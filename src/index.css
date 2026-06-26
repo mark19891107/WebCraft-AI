@@ -1,0 +1,16 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+.wc-caret {
+  animation: wc-blink 1s steps(1) infinite;
+}
+
+@keyframes wc-blink {
+  50% {
+    opacity: 0;
+  }
+}
