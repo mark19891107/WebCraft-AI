@@ -15,7 +15,7 @@
 |---|------|------|------|
 | 1 | Project Scaffold | ✅ | React + Vite + Ant Design，5 個 stub 頁面，build 通過 |
 | 22 | GitHub Actions Deploy | ✅ | workflow 已建立（提前實作，供線上驗證）|
-| 2 | TypeScript Types | ⬜ | |
+| 2 | TypeScript Types | ✅ | `src/types/index.ts`，tsc 通過 |
 | 3 | Storage Layer | ⬜ | |
 | 4 | OPFS Service | ⬜ | |
 | 5 | LLM Streaming Service | ⬜ | |
@@ -43,6 +43,7 @@
 - ✅ **Task 1**：建立 React + Vite + Ant Design 專案骨架（TypeScript、Hash Router、深色主題、5 個路由 stub），`npm run build` 通過。
 - ✅ **Task 22**：建立 GitHub Actions 部署 workflow（`peaceiris/actions-gh-pages`），觸發分支含開發分支，提前實作以便線上驗證後續每一步。
 - 📝 新增本進度文件。
+- ✅ **Task 2**：建立 `src/types/index.ts`，定義所有共用型別（Message、ToolDefinition、ToolVersion、DataSource、Settings、MCP、Bridge 通訊協定、匯出格式），`tsc --noEmit` 通過。
 
 ## 待使用者完成的一次性設定
 
