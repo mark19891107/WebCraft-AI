@@ -1,14 +1,292 @@
-# WebCraft AI Implementation Plan
+# WebCraft AI — 設計與實作文件
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**日期：** 2026-06-26　**狀態：** 實作中
 
-**Goal:** Build a pure-frontend AI web tool generator (React + Vite + Ant Design) deployable to GitHub Pages, where users can describe tools in natural language, have an LLM generate them, bind data sources, and share via exported JSON files.
-
-**Architecture:** Single-page React app with Hash Router. All tool definitions in localStorage, large data files in OPFS. Generated tools run in sandboxed iframes communicating with the host via postMessage (the Bridge API). LLM calls are proxied through the host page so API keys never reach the iframe.
-
-**Tech Stack:** React 18, TypeScript, Vite, Ant Design 5, React Router v6 (Hash), highlight.js, uuid
+> 本文件為單一整合文件，涵蓋：設計規格、系統架構、待修問題、實作 Roadmap（含進度）、變更紀錄，以及各 Task 的程式碼參考（附錄）。
 
 ---
+
+## 目錄
+
+1. [概述](#1-概述)
+2. [目標用戶與技術棧](#2-目標用戶與技術棧)
+3. [系統架構](#3-系統架構)
+4. [已知待修問題（Review）](#4-已知待修問題review)
+5. [實作 Roadmap（垂直切片）](#5-實作-roadmap垂直切片)
+6. [進度與變更紀錄](#6-進度與變更紀錄)
+7. [附錄：各 Task 實作參考（程式碼）](#7-附錄各-task-實作參考程式碼)
+
+---
+
+## 1. 概述
+
+WebCraft AI 是一個純前端的 AI 網頁工具生成平台，讓用戶透過對話描述需求，由 LLM 生成可互動的網頁工具。工具可綁定外部資料來源（CSV/JSON 檔案、API、MCP Server），生成後可儲存在瀏覽器本地，並透過匯出 JSON 定義檔的方式分享給他人。整個系統部署在 GitHub Pages，不需要後端伺服器。
+
+🔗 線上版：https://mark19891107.github.io/WebCraft-AI/
+
+---
+
+## 2. 目標用戶與技術棧
+
+### 目標用戶
+
+- **一般用戶**：無需技術背景，透過自然語言描述需求即可生成工具
+- **開發者**：可檢視/編輯生成的 HTML/JS 原始碼，進行進階客製化
+
+### 技術棧
+
+- **框架：** React 18 + Vite
+- **UI 元件：** Ant Design 5
+- **路由：** React Router v6（Hash Router，相容 GitHub Pages 靜態部署）
+- **儲存：** localStorage（工具定義、設定）+ OPFS（大型資料檔案，支援 2GB+）
+- **部署：** GitHub Pages + GitHub Actions（push to `main` 自動部署，來源＝GitHub Actions）
+- **語言：** TypeScript
+- **響應式：** 行動優先（mobile-first RWD），桌機與手機/平板皆為一級支援目標（見 [3.9](#39-響應式設計行動優先)）
+
+---
+
+## 3. 系統架構
+
+### 3.1 頁面結構
+
+| 路由 | 說明 |
+|------|------|
+| `/` | 首頁（工具庫）：工具卡片網格、資料來源 badge、新增/匯入/匯出/刪除 |
+| `/create`、`/create/:id` | 建立/編輯工具：左側對話介面，右側 Tool/Code 切換預覽＋版本歷史，底部選綁定資料來源 |
+| `/tool/:id` | 使用工具：全頁 iframe 渲染，右上浮動按鈕（返回/編輯/匯出）|
+| `/data` | 資料來源管理：上傳/刪除 CSV/JSON（存 OPFS，支援 2GB+）|
+| `/settings` | 系統設定：LLM（endpoint/key/model/測試連線）、MCP Server 清單 |
+
+#### `/create` 細節
+
+- **左側**：對話介面，用戶描述需求，LLM streaming 回應並生成程式碼，可來回修改。
+- **右側**：預覽區，頂部有 **Tool / Code 切換 Tab**。
+  - **Tool View**：iframe 全畫面渲染工具，patch 套用後自動刷新。
+  - **Code View**：語法高亮的程式碼閱覽器（唯讀，highlight.js），顯示當前版本完整 HTML，提供複製按鈕。
+  - 版本歷史時間軸位於 Tab 列下方。
+- **底部操作列**：儲存工具名稱/描述、選擇綁定的資料來源。
+- 對話紀錄隨工具定義一起儲存，之後可繼續修改。
+
+### 3.2 資料結構
+
+#### 工具定義（localStorage）
+
+```typescript
+interface ToolDefinition {
+  id: string               // UUID v4
+  name: string
+  description: string
+  createdAt: string        // ISO 8601
+  updatedAt: string
+  currentVersionId: string // 當前顯示的版本 ID
+  versions: ToolVersion[]  // 所有版本（樹狀，透過 parentVersionId 連結）
+  dataSources: DataSource[]
+  conversation: Message[]  // 建立時的對話紀錄
+}
+
+interface ToolVersion {
+  versionId: string        // UUID v4
+  parentVersionId: string | null  // 形成樹狀結構，null 代表根版本
+  createdAt: string        // ISO 8601
+  label?: string           // 用戶自訂版本說明（可選）
+  code: string             // 該版本的完整 HTML 程式碼（snapshot）
+  conversation: Message[]  // 該版本對應的對話紀錄
+}
+
+type DataSource =
+  | { type: 'file'; name: string; opfsPath: string }
+  | { type: 'api';  name: string; url: string; headers: Record<string, string> }
+  | { type: 'mcp';  name: string; serverRef: string }  // serverRef 指向 Settings.mcpServers[].id
+
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+}
+```
+
+#### 系統設定（localStorage，獨立 key）
+
+```typescript
+interface Settings {
+  llm: { endpoint: string; apiKey: string; model: string }
+  mcpServers: MCPServer[]
+}
+
+interface MCPServer {
+  id: string
+  name: string
+  url: string
+  transport: 'sse' | 'streamable-http'
+}
+```
+
+#### 匯出格式（JSON 定義檔）
+
+與 `ToolDefinition` 相同結構，但：
+- `dataSources[type=file]` 的小型檔案（< 10MB）嵌入 base64；大型檔案省略並附警告。
+- `dataSources[type=api/mcp]` 保留設定，接收方需自行有對應的 server。
+- API Key 不會被匯出。
+
+### 3.3 Bridge API（iframe ↔ 主頁面通訊）
+
+生成的工具程式碼透過 `window.bridge` 物件呼叫主頁面能力，主頁面透過 `postMessage` 橋接實作。
+
+```typescript
+interface Bridge {
+  llm:  { chat(messages: Message[], options?: { stream?: boolean }): Promise<string> }
+  data: { read(name: string, options?: { rows?: number; offset?: number }): Promise<unknown> }
+  mcp:  { call(serverName: string, tool: string, params: Record<string, unknown>): Promise<unknown>
+          listTools(serverName: string): Promise<MCPTool[]> }
+  api:  { fetch(name: string, options?: RequestInit): Promise<unknown> }
+}
+```
+
+主頁面負責：
+- 代理所有 LLM 請求（持有 API Key，iframe 無法直接取得）。
+- 從 OPFS 讀取大型檔案並分塊串流給 iframe。
+- 連接 MCP Server（SSE / Streamable HTTP）並轉發 Tool 呼叫結果。
+- 代理外部 API fetch（繞過 CORS 限制）。
+
+### 3.4 版本歷史（樹狀）
+
+每次 LLM 完成一輪程式碼生成（patch 套用完畢）後，系統自動建立一個新的 `ToolVersion` snapshot，不需手動儲存。版本透過 `parentVersionId` 連結成樹狀結構，可從任意歷史版本分支繼續修改。
+
+```
+v1 (根)
+├── v2 (加入折線圖)
+│   ├── v3 (改成深色主題)
+│   └── v4 (加上篩選器) ← 從 v2 分支
+└── v5 (改用表格) ← 從 v1 分支
+```
+
+版本歷史 UI 位於 `/create` 右側預覽區上方，可：點擊切換、從任意版本分支、加標籤、刪除某分支（含子孫）。版本資料存在 localStorage 的 `ToolDefinition` 內，匯出時一併匯出。
+
+### 3.5 LLM 生成流程
+
+**首次生成：** 組裝 system prompt（bridge API 文件 + 資料來源 schema 摘要 + 輸出格式）→ LLM streaming 輸出完整 HTML → 解析、注入 bridge、寫入 iframe `srcdoc` → 建立根版本。
+
+**後續增量修改（節省 token）：** LLM 輸出「說明文字 + `<patch>` 區塊」：
+
+```
+我將加入折線圖並調整資料格式。
+
+<patch>
+  <find><![CDATA[// 要被替換的原始程式碼片段（唯一可識別）]]></find>
+  <replace><![CDATA[// 替換後的程式碼]]></replace>
+</patch>
+```
+
+- 串流時說明文字即時顯示在對話泡泡；`<patch>` 以可折疊 code block 顯示。
+- 串流結束後提取 patch、套用、iframe 刷新、建立新版本。
+- System prompt 每輪帶入「當前版本完整程式碼」；對話歷史只留說明文字（不重複 patch）。
+- patch 套用失敗時 fallback 要求 LLM 重新輸出完整程式碼。
+
+### 3.6 MCP 連線
+
+- **SSE transport**：連接 `GET {url}/sse` 接收 SSE；工具呼叫透過 `POST {url}/messages`。
+- **Streamable HTTP transport**：所有請求透過 `POST {url}`，支援 streaming 回應。
+- 用戶在 `/settings` 填入 URL 與 transport 類型後，系統在背景建立連線並快取可用 Tool 清單。
+
+### 3.7 分享機制
+
+- **匯出**：下載 `.webcraft.json` 定義檔。
+- **匯入**：上傳 `.webcraft.json`，解析後存入 localStorage，大型檔案資料需另行上傳。
+- 無帳號、無雲端，所有資料留在用戶瀏覽器。
+
+### 3.8 部署
+
+- GitHub Actions：push 到 `main` → `npm run build` → 透過官方 `actions/deploy-pages` 部署。
+- 使用 Hash Router（`/#/create`）避免靜態 hosting 路由問題。
+- 因 `github-pages` environment 預設只允許從 `main` 部署，開發在 `claude/repo-overview-zbalmv`，驗證時合併進 `main`。
+
+### 3.9 響應式設計（行動優先）
+
+行動裝置支援為**一級需求、高優先**，從外殼階段（S1）即建立，並於每個 UI 切片驗收行動版。原則：
+
+- **Mobile-first**：先設計窄螢幕，再用斷點往上加桌機樣式。
+- **斷點**：以 AntD Grid（`xs/sm/md/lg/xl`）為準；`< md`（約 768px）視為行動版。
+- **導覽**：行動版 Header 將導覽連結收進漢堡選單（AntD `Drawer`），桌機維持橫向連結。
+- **首頁網格**：卡片 `xs=24 / sm=12 / md=8 / lg=6`，手機單欄。
+- **`/create` 版面**：桌機為左右雙欄（對話｜預覽）；行動版改為**分頁切換**（對話 / 預覽 / 版本）的單欄堆疊，避免雙欄擠壓。
+- **觸控**：互動元件符合最小觸控尺寸；表格在窄螢幕可水平捲動或改用卡片式呈現。
+- **驗收**：每個 UI 切片完成時，需在 ≤ 375px 寬度下確認可正常操作（無水平溢出、按鈕可點）。
+
+### 3.10 非目標（不在此版本範圍）
+
+- 帳號系統 / 雲端同步
+- 協作編輯
+
+---
+
+## 4. 已知待修問題（Review）
+
+實作各 Slice 時需一併處理：
+
+| # | 問題 | 嚴重度 |
+|---|------|--------|
+| 1 | **LLM 串流解析缺跨-chunk 緩衝**：每個 network chunk 各自 `decode().split('\n')`，SSE 行被切在 chunk 邊界時會 `JSON.parse` 失敗、掉字。需保留未完成行的 buffer。 | 🔴 高 |
+| 2 | **Bridge 注入方式行不通**：`srcdoc` iframe origin 為 `null`，無法用 URL 載入 `/bridge-inject.js`，必須把 bridge 腳本**內聯**進 srcdoc；並設 `sandbox="allow-scripts"`（不給 `allow-same-origin`）。 | 🔴 高 |
+| 3 | **MCP client 不完整**：跳過 `initialize`→`notifications/initialized` 握手就 `tools/list`；SSE 的 `EventSource` 從未開啟；瀏覽器端會撞 CORS。風險最高，放最後獨立驗證。 | 🔴 高 |
+| 4 | **`data.read` 只回傳文字行**：對 JSON 無意義、無 CSV 解析、缺 schema 摘要注入。需重新定義資料契約（CSV→rows、JSON→物件，並提供 schema/預覽給 system prompt）。 | 🟡 中 |
+| 5 | **安全/費用**：生成工具可無限制呼叫 `bridge.llm.chat` 用用戶 API Key；API Key 明文存 localStorage。需 UI 警告，並考慮對 bridge.llm 加確認/上限。 | 🟡 中 |
+| 6 | **相容性**：`testConnection` 依賴 `/models` 端點（非通用）；OPFS 在部分瀏覽器（Safari）受限，需 feature-detect 並優雅降級。 | 🟢 低 |
+
+---
+
+## 5. 實作 Roadmap（垂直切片）
+
+執行採「小功能堆疊」：每個 Slice 都是端到端、可在 Pages 線上驗證的薄功能。最高風險的整合（LLM 串流 → iframe）盡早做；最複雜的 MCP 放最後。各 Task 的程式碼見[附錄](#7-附錄各-task-實作參考程式碼)。
+
+**跨切片原則 — 行動優先（高優先）：** 行動裝置支援不是獨立的後置工作，而是貫穿每個 UI 切片的驗收條件。響應式外殼於 **S1** 建立（漢堡選單 + Drawer 導覽 + 響應式 Layout）；之後每個含 UI 的切片（S2–S8）都必須在 ≤ 375px 寬度通過行動版驗收（見 [3.9](#39-響應式設計行動優先)）。
+
+| Slice | 內容 | 完成後可驗證 | 涵蓋原 Task |
+|-------|------|--------------|-------------|
+| **S0** ✅ | 骨架 + 部署 + 型別 | Pages 開得起來、深色首頁 | 1, 2, 22 |
+| **S1** | **行動優先**外殼與導覽（AppHeader + Drawer 漢堡選單 + 各頁響應式 Layout/空狀態）| 桌機橫向導覽、手機漢堡選單，各頁切換 | 10 |
+| **S2** | LLM 設定可儲存（settingsStore/useSettings + Settings LLM 區塊 + 測試連線）｜📱行動版驗收 | 填設定→重整還在、測試連線 | 3(settings), 5(test), 13(LLM) |
+| **S3** | 工具庫儲存/列表（toolsStore/useTools + ToolCard + Badge + Home 響應式網格）｜📱行動版驗收 | 手動建工具→卡片→刪除→持久化、手機單欄 | 3(tools), 11, 12(列表) |
+| **S4** ⭐ | 對話→LLM 串流→生成 HTML→iframe 預覽（首輪）；行動版改分頁堆疊版面｜📱行動版驗收 | 第一個會動的版本，打通脊椎 | 5, 6(部分), 15, 16(部分), 18(部分), 19(首輪), 20(首輪), 21 |
+| **S5** | 版本樹 + 增量 patch + Code 檢視｜📱行動版驗收 | 多輪修改、分支、看原始碼 | 6, 17, 18, 19(patch), 20 |
+| **S6** | 資料來源 OPFS + bridge.data｜📱行動版驗收 | 上傳 CSV→工具讀得到 | 4, 8(data), 14 |
+| **S7** | bridge 的 llm / api 代理 | 工具回呼 LLM / 抓 API | 8(llm/api) |
+| **S8** | 匯出 / 匯入｜📱行動版驗收 | `.webcraft.json` 分享還原 | 9, 12(匯入匯出) |
+| **S9** | MCP（最後、獨立驗證）| 連 MCP Server、工具呼叫 tool | 7, 8(mcp), 13(MCP) |
+
+---
+
+## 6. 進度與變更紀錄
+
+**圖例：** ✅ 完成　🚧 進行中　⬜ 未開始
+
+| Slice | 狀態 |
+|-------|------|
+| S0 基礎（骨架/部署/型別）| ✅ |
+| S1 行動優先外殼與導覽 | ⬜ |
+| S2 LLM 設定 | ⬜ |
+| S3 工具庫列表 | ⬜ |
+| S4 核心生成主軸 | ⬜ |
+| S5 版本樹 + patch | ⬜ |
+| S6 資料來源 OPFS | ⬜ |
+| S7 bridge llm/api | ⬜ |
+| S8 匯出匯入 | ⬜ |
+| S9 MCP | ⬜ |
+
+### 變更紀錄
+
+#### 2026-06-26
+- ✅ 新增專案 README。
+- ✅ **S0 / Task 1**：建立 React + Vite + Ant Design 專案骨架（TypeScript、Hash Router、深色主題、5 路由 stub），`npm run build` 通過。
+- ✅ **S0 / Task 22**：建立 GitHub Actions 部署；部署來源改為官方 GitHub Actions（`configure-pages` + `upload-pages-artifact` + `deploy-pages`），由 `main` 觸發。
+- ✅ **S0 / Task 2**：建立 `src/types/index.ts`，定義所有共用型別，`tsc --noEmit` 通過。
+- 📝 重排實作順序為 S0–S9 垂直切片，並記錄待修問題（第 4 節）。
+- 📝 將設計規格、實作計畫、Roadmap、進度整合為本單一文件。
+- 📝 將「行動裝置優化」從非目標移為**一級高優先需求**：新增 [3.10 響應式設計](#310-響應式設計行動優先)，響應式外殼於 S1 建立，S2–S8 每個 UI 切片納入行動版驗收。
+
+---
+
+## 7. 附錄：各 Task 實作參考（程式碼）
+
+> 以下為原實作計畫的逐 Task 程式碼，作為實作時的參考。**執行順序以第 5 節的 Slice 為準**（Slice 會重新分組並修正第 4 節列出的問題），本附錄僅供查閱對應程式碼片段。
 
 ## File Map
 

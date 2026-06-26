@@ -96,13 +96,15 @@ npx vitest run
 
 ## 📚 文件
 
-設計與實作細節請見：
+設計規格、系統架構、實作 Roadmap、進度與各 Task 程式碼參考，皆整合於單一文件：
 
-- [設計規格](docs/superpowers/specs/2026-06-26-webcraft-ai-design.md)
-- [實作計畫](docs/superpowers/plans/2026-06-26-webcraft-ai.md)
+- [WebCraft AI — 設計與實作文件](docs/webcraft-ai.md)
+
+## 📱 響應式
+
+行動裝置支援為一級高優先需求，採行動優先（mobile-first）設計，桌機與手機/平板皆為支援目標。
 
 ## 🎯 非目標（不在目前範圍）
 
 - 帳號系統 / 雲端同步
 - 協作編輯
-- 行動裝置優化（以桌面為主）
