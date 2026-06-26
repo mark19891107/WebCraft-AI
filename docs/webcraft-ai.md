@@ -262,14 +262,14 @@ v1 (根)
 |-------|------|
 | S0 基礎（骨架/部署/型別）| ✅ |
 | S1 行動優先外殼與導覽 | ✅ |
-| S2 LLM 設定 | ⬜ |
-| S3 工具庫列表 | ⬜ |
-| S4 核心生成主軸 | ⬜ |
-| S5 版本樹 + patch | ⬜ |
-| S6 資料來源 OPFS | ⬜ |
-| S7 bridge llm/api | ⬜ |
-| S8 匯出匯入 | ⬜ |
-| S9 MCP | ⬜ |
+| S2 LLM 設定 | ✅ |
+| S3 工具庫列表 | ✅ |
+| S4 核心生成主軸 | ✅ |
+| S5 版本樹 + patch | ✅ |
+| S6 資料來源 OPFS | ✅ |
+| S7 bridge llm/api | ✅ |
+| S8 匯出匯入 | ✅ |
+| S9 MCP | ✅ |
 
 ### 變更紀錄
 
@@ -282,6 +282,15 @@ v1 (根)
 - 📝 將設計規格、實作計畫、Roadmap、進度整合為本單一文件。
 - 📝 將「行動裝置優化」從非目標移為**一級高優先需求**：新增 [3.9 響應式設計](#39-響應式設計行動優先)，響應式外殼於 S1 建立，S2–S8 每個 UI 切片納入行動版驗收。
 - ✅ **S1**：新增響應式 `AppHeader`（桌機橫向導覽、手機漢堡選單 + Drawer，AntD `useBreakpoint`），五個頁面套上 Layout 與空狀態，`npm run build` 通過。
+- ✅ **S2**：LLM 設定可儲存（settingsStore/useSettings）+ 串流客戶端（修正跨-chunk SSE 緩衝）+ 設定頁 LLM 表單與測試連線、API Key 明文警告。
+- ✅ **S3**：工具庫儲存/列表（toolsStore/useTools）+ ToolCard/DataSourceBadge + 首頁響應式網格與刪除確認。
+- ✅ **S4**：核心生成主軸——對話→LLM 串流→生成完整 HTML→sandbox iframe 預覽；CreatePage（手機改分頁版面）、ToolPage 全頁渲染。
+- ✅ **S5**：版本樹（建立/分支/標籤/刪除）+ 增量 patch 套用（失敗 fallback 完整重寫）+ 程式碼檢視（highlight.js）；patch 單元測試 9 項通過。
+- ✅ **S6**：OPFS 服務（feature-detect）+ DataPage + CSV/JSON 解析與 schema 摘要注入 + DataSourceBinder 綁定檔案/API；bridge 內聯注入修正（srcdoc origin null）。
+- ✅ **S7**：bridge 的 `llm.chat`（串流）與 `api.fetch`（CORS 代理）host handler。
+- ✅ **S8**：匯出/匯入 `.webcraft.json`（小檔內嵌 base64、API Key 不外洩、匯入還原寫回 OPFS）。
+- ✅ **S9**：MCP client（補上 `initialize`→`notifications/initialized` 握手 + session id）+ 設定頁 MCP 管理 + bridge 的 `mcp.call`/`mcp.listTools` + 工具可綁定 MCP server。
+- 🎉 S0–S9 全部完成。
 
 ---
 

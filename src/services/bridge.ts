@@ -2,6 +2,7 @@ import { BridgeRequest, BridgeResponse, ToolDefinition } from '../types'
 import { streamLLM } from './llm'
 import { readFileAsText } from './opfs'
 import { parseData } from './dataSource'
+import { callMCPTool, getConnectedTools, connectMCP } from './mcpClient'
 import { loadSettings } from '../store/settingsStore'
 
 function reply(iframe: HTMLIFrameElement, msg: BridgeResponse) {
@@ -70,9 +71,26 @@ async function handle(event: MessageEvent, iframe: HTMLIFrameElement, tool: Tool
         break
       }
 
-      case 'mcp.call':
+      case 'mcp.call': {
+        const server = settings.mcpServers.find((s) => s.name === req.serverName)
+        if (!server) {
+          reply(iframe, { requestId, error: `找不到 MCP server "${req.serverName}"`, done: true })
+          return
+        }
+        const result = await callMCPTool(server, req.tool, req.params)
+        reply(iframe, { requestId, result, done: true })
+        break
+      }
+
       case 'mcp.listTools': {
-        reply(iframe, { requestId, error: 'MCP 尚未啟用（S9）', done: true })
+        const server = settings.mcpServers.find((s) => s.name === req.serverName)
+        if (!server) {
+          reply(iframe, { requestId, error: `找不到 MCP server "${req.serverName}"`, done: true })
+          return
+        }
+        let tools = getConnectedTools(server.id)
+        if (tools.length === 0) tools = await connectMCP(server)
+        reply(iframe, { requestId, result: tools, done: true })
         break
       }
     }

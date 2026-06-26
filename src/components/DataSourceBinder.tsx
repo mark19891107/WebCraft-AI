@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Modal, Typography, Checkbox, Empty, Divider, Form, Input, Button, List, Space, Tag } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
-import { DataSource } from '../types'
+import { DataSource, MCPServer } from '../types'
 import { listFiles, isOPFSSupported, OPFSFileInfo } from '../services/opfs'
 
 interface Props {
   open: boolean
   dataSources: DataSource[]
+  mcpServers: MCPServer[]
   onClose: () => void
   onChange: (next: DataSource[]) => void
 }
 
-export default function DataSourceBinder({ open, dataSources, onClose, onChange }: Props) {
+export default function DataSourceBinder({ open, dataSources, mcpServers, onClose, onChange }: Props) {
   const [files, setFiles] = useState<OPFSFileInfo[]>([])
   const [apiForm] = Form.useForm<{ name: string; url: string }>()
 
@@ -23,6 +24,18 @@ export default function DataSourceBinder({ open, dataSources, onClose, onChange 
     dataSources.filter((d) => d.type === 'file').map((d) => d.name),
   )
   const apiSources = dataSources.filter((d) => d.type === 'api')
+  const boundMcpRefs = new Set(
+    dataSources.filter((d) => d.type === 'mcp').map((d) => d.serverRef),
+  )
+
+  function toggleMcp(server: MCPServer, checked: boolean) {
+    const others = dataSources.filter((d) => !(d.type === 'mcp' && d.serverRef === server.id))
+    if (checked) {
+      onChange([...others, { type: 'mcp', name: server.name, serverRef: server.id }])
+    } else {
+      onChange(others)
+    }
+  }
 
   function toggleFile(info: OPFSFileInfo, checked: boolean) {
     const others = dataSources.filter((d) => !(d.type === 'file' && d.name === info.name))
@@ -103,6 +116,25 @@ export default function DataSourceBinder({ open, dataSources, onClose, onChange 
           </Button>
         </Form.Item>
       </Form>
+
+      <Divider />
+
+      <Typography.Title level={5}>MCP Servers</Typography.Title>
+      {mcpServers.length === 0 ? (
+        <Empty description="尚未設定 MCP Server，請到「設定」頁新增" />
+      ) : (
+        <Space direction="vertical">
+          {mcpServers.map((s) => (
+            <Checkbox
+              key={s.id}
+              checked={boundMcpRefs.has(s.id)}
+              onChange={(e) => toggleMcp(s, e.target.checked)}
+            >
+              {s.name}
+            </Checkbox>
+          ))}
+        </Space>
+      )}
     </Modal>
   )
 }

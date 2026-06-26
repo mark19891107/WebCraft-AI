@@ -1,17 +1,37 @@
-import { Layout, Form, Input, Button, Space, Typography, Alert, message } from 'antd'
-import { ApiOutlined, SaveOutlined } from '@ant-design/icons'
+import {
+  Layout,
+  Form,
+  Input,
+  Button,
+  Space,
+  Typography,
+  Alert,
+  message,
+  Divider,
+  Table,
+  Modal,
+  Select,
+  Popconfirm,
+} from 'antd'
+import { ApiOutlined, SaveOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 import AppHeader from '../components/AppHeader'
 import { useSettings } from '../hooks/useSettings'
 import { testConnection } from '../services/llm'
-import { Settings } from '../types'
+import { connectMCP } from '../services/mcpClient'
+import { Settings, MCPServer } from '../types'
 
 const { Content } = Layout
 
 export default function SettingsPage() {
   const { settings, update } = useSettings()
   const [llmForm] = Form.useForm<Settings['llm']>()
+  const [mcpForm] = Form.useForm<Omit<MCPServer, 'id'>>()
   const [testing, setTesting] = useState(false)
+  const [mcpModalOpen, setMcpModalOpen] = useState(false)
+  const [editingMcp, setEditingMcp] = useState<MCPServer | null>(null)
+  const [connecting, setConnecting] = useState(false)
 
   function handleSaveLLM(values: Settings['llm']) {
     update({ ...settings, llm: values })
@@ -30,6 +50,58 @@ export default function SettingsPage() {
     if (ok) message.success('連線成功')
     else message.error('連線失敗，請確認 Endpoint 與 API Key')
   }
+
+  function openAddMcp() {
+    setEditingMcp(null)
+    mcpForm.resetFields()
+    setMcpModalOpen(true)
+  }
+
+  function openEditMcp(server: MCPServer) {
+    setEditingMcp(server)
+    mcpForm.setFieldsValue(server)
+    setMcpModalOpen(true)
+  }
+
+  async function handleSaveMcp(values: Omit<MCPServer, 'id'>) {
+    const server: MCPServer = { ...values, id: editingMcp?.id ?? uuidv4() }
+    setConnecting(true)
+    try {
+      await connectMCP(server)
+      message.success(`MCP "${server.name}" 連線成功`)
+    } catch (err) {
+      message.warning(`已儲存，但連線測試失敗：${err}`)
+    } finally {
+      setConnecting(false)
+    }
+    const others = settings.mcpServers.filter((s) => s.id !== server.id)
+    update({ ...settings, mcpServers: [...others, server] })
+    setMcpModalOpen(false)
+  }
+
+  function deleteMcp(id: string) {
+    update({ ...settings, mcpServers: settings.mcpServers.filter((s) => s.id !== id) })
+  }
+
+  const mcpColumns = [
+    { title: '名稱', dataIndex: 'name' },
+    { title: 'URL', dataIndex: 'url', ellipsis: true },
+    { title: 'Transport', dataIndex: 'transport', width: 140 },
+    {
+      title: '操作',
+      width: 120,
+      render: (_: unknown, record: MCPServer) => (
+        <Space>
+          <Button size="small" onClick={() => openEditMcp(record)}>
+            編輯
+          </Button>
+          <Popconfirm title="刪除此 MCP Server？" okText="刪除" cancelText="取消" onConfirm={() => deleteMcp(record.id)}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -63,6 +135,68 @@ export default function SettingsPage() {
             </Button>
           </Space>
         </Form>
+
+        <Divider />
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 12,
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            MCP Servers
+          </Typography.Title>
+          <Button icon={<PlusOutlined />} onClick={openAddMcp}>
+            新增
+          </Button>
+        </div>
+        <Alert
+          style={{ marginBottom: 12 }}
+          type="info"
+          showIcon
+          message="MCP Server 需允許瀏覽器跨來源（CORS）請求，否則無法在前端直接連線。"
+        />
+        <Table
+          dataSource={settings.mcpServers}
+          columns={mcpColumns}
+          rowKey="id"
+          pagination={false}
+          size="small"
+          scroll={{ x: 'max-content' }}
+          locale={{ emptyText: '尚未設定 MCP Server' }}
+        />
+
+        <Modal
+          title={editingMcp ? '編輯 MCP Server' : '新增 MCP Server'}
+          open={mcpModalOpen}
+          onCancel={() => setMcpModalOpen(false)}
+          footer={null}
+        >
+          <Form form={mcpForm} onFinish={handleSaveMcp} layout="vertical" initialValues={{ transport: 'streamable-http' }}>
+            <Form.Item name="name" label="名稱" rules={[{ required: true }]}>
+              <Input placeholder="my-server" />
+            </Form.Item>
+            <Form.Item name="url" label="URL" rules={[{ required: true }]}>
+              <Input placeholder="https://localhost:3000/mcp" />
+            </Form.Item>
+            <Form.Item name="transport" label="Transport" rules={[{ required: true }]}>
+              <Select
+                options={[
+                  { value: 'streamable-http', label: 'Streamable HTTP' },
+                  { value: 'sse', label: 'SSE' },
+                ]}
+              />
+            </Form.Item>
+            <Button type="primary" htmlType="submit" loading={connecting}>
+              儲存並測試連線
+            </Button>
+          </Form>
+        </Modal>
       </Content>
     </Layout>
   )

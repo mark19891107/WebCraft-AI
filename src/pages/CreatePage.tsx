@@ -255,6 +255,7 @@ export default function CreatePage() {
       <DataSourceBinder
         open={bindOpen}
         dataSources={tool.dataSources}
+        mcpServers={settings.mcpServers}
         onClose={() => setBindOpen(false)}
         onChange={handleBind}
       />
