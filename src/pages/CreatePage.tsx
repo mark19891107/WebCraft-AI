@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { Layout, Button, Input, Space, message, Modal, Form, Typography, Grid, Tabs } from 'antd'
-import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons'
+import { SaveOutlined, ArrowLeftOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import AppHeader from '../components/AppHeader'
 import ChatPanel from '../components/ChatPanel'
 import PreviewPanel from '../components/PreviewPanel'
+import DataSourceBinder from '../components/DataSourceBinder'
 import { useTools } from '../hooks/useTools'
 import { useSettings } from '../hooks/useSettings'
 import { useLLMStream } from '../hooks/useLLMStream'
 import { parsePatches, applyPatches, extractExplanation, extractFullHtml } from '../services/patch'
 import { buildFirstTurnSystemPrompt, buildPatchSystemPrompt } from '../services/systemPrompt'
-import { ToolDefinition, ToolVersion, Message } from '../types'
+import { summarizeBoundData } from '../services/dataSource'
+import { ToolDefinition, ToolVersion, Message, DataSource } from '../types'
 
 const { useBreakpoint } = Grid
 
@@ -44,6 +46,13 @@ export default function CreatePage() {
   const [messages, setMessages] = useState<Message[]>(() => currentVersion?.conversation ?? [])
   const [input, setInput] = useState('')
   const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [bindOpen, setBindOpen] = useState(false)
+
+  function handleBind(dataSources: DataSource[]) {
+    const updated = { ...tool, dataSources, updatedAt: new Date().toISOString() }
+    setTool(updated)
+    save(updated)
+  }
 
   async function handleSend() {
     if (!input.trim() || streaming) return
@@ -58,9 +67,10 @@ export default function CreatePage() {
     setMessages(updatedMessages)
     setInput('')
 
+    const schemaSummary = await summarizeBoundData(tool.dataSources)
     const systemPrompt = isFirstTurn
-      ? buildFirstTurnSystemPrompt(tool.dataSources)
-      : buildPatchSystemPrompt(currentVersion?.code ?? '', tool.dataSources)
+      ? buildFirstTurnSystemPrompt(tool.dataSources, schemaSummary)
+      : buildPatchSystemPrompt(currentVersion?.code ?? '', tool.dataSources, schemaSummary)
 
     let fullResponse: string
     try {
@@ -215,9 +225,14 @@ export default function CreatePage() {
             {tool.name} ✏️
           </Typography.Text>
         </Space>
-        <Button icon={<SaveOutlined />} onClick={() => setSaveModalOpen(true)}>
-          設定
-        </Button>
+        <Space>
+          <Button icon={<DatabaseOutlined />} onClick={() => setBindOpen(true)}>
+            資料{tool.dataSources.length ? ` (${tool.dataSources.length})` : ''}
+          </Button>
+          <Button icon={<SaveOutlined />} onClick={() => setSaveModalOpen(true)}>
+            設定
+          </Button>
+        </Space>
       </div>
 
       {isMobile ? (
@@ -236,6 +251,13 @@ export default function CreatePage() {
           <div style={{ flex: 1, minHeight: 0 }}>{preview}</div>
         </div>
       )}
+
+      <DataSourceBinder
+        open={bindOpen}
+        dataSources={tool.dataSources}
+        onClose={() => setBindOpen(false)}
+        onChange={handleBind}
+      />
 
       <Modal title="工具設定" open={saveModalOpen} onCancel={() => setSaveModalOpen(false)} footer={null}>
         <Form

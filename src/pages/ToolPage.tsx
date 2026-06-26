@@ -27,7 +27,7 @@ export default function ToolPage() {
 
   return (
     <div style={{ position: 'relative', height: '100vh', overflow: 'hidden' }}>
-      <BridgeIframe code={currentVersion.code} title={tool.name} />
+      <BridgeIframe code={currentVersion.code} tool={tool} title={tool.name} />
       <Space style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
         <Tooltip title="返回首頁">
           <Button shape="circle" icon={<ArrowLeftOutlined />} onClick={() => navigate('/')} />

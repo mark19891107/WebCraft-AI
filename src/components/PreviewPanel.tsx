@@ -31,7 +31,7 @@ export default function PreviewPanel({
           key: 'tool',
           label: '預覽',
           style: { height: 'calc(100vh - 160px)' },
-          children: <BridgeIframe code={code} />,
+          children: <BridgeIframe code={code} tool={tool} />,
         },
         {
           key: 'code',

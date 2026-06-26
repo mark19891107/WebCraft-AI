@@ -24,13 +24,21 @@ function listSources(dataSources: ToolDefinition['dataSources']): string {
     : '（無）'
 }
 
-export function buildFirstTurnSystemPrompt(dataSources: ToolDefinition['dataSources']): string {
+function schemaBlock(schemaSummary?: string): string {
+  return schemaSummary ? `\n資料來源 schema 摘要：\n${schemaSummary}\n` : ''
+}
+
+export function buildFirstTurnSystemPrompt(
+  dataSources: ToolDefinition['dataSources'],
+  schemaSummary?: string,
+): string {
   return `你是資深前端工程師，請依使用者需求生成一個完整、可獨立執行的 HTML 工具。
 
 ${BRIDGE_API_DOCS}
 
 此工具已綁定的資料來源：
 ${listSources(dataSources)}
+${schemaBlock(schemaSummary)}
 
 輸出格式：先用一兩句說明，接著輸出完整 HTML（含內聯 CSS 與 JS）於 markdown code block：
 \`\`\`html
@@ -48,6 +56,7 @@ ${listSources(dataSources)}
 export function buildPatchSystemPrompt(
   currentCode: string,
   dataSources: ToolDefinition['dataSources'],
+  schemaSummary?: string,
 ): string {
   return `你是資深前端工程師，正在修改一個既有的 HTML 工具。
 
@@ -55,6 +64,7 @@ ${BRIDGE_API_DOCS}
 
 已綁定的資料來源：
 ${listSources(dataSources)}
+${schemaBlock(schemaSummary)}
 
 目前的工具程式碼：
 \`\`\`html

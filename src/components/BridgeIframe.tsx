@@ -1,18 +1,30 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Empty } from 'antd'
+import { ToolDefinition } from '../types'
+import { injectBridge } from '../services/bridgeInject'
+import { attachBridge } from '../services/bridge'
 
 interface Props {
   code: string
+  tool?: ToolDefinition
   title?: string
 }
 
 /**
  * 在 sandbox iframe 中渲染生成的工具。
  * 使用 srcdoc（origin 為 null），sandbox 僅給 allow-scripts 以隔離。
- * Bridge（postMessage 通訊）將於 S6/S7 加入。
+ * 提供 tool 時會內聯注入 window.bridge 並掛上主頁面的 postMessage handler。
  */
-export default function BridgeIframe({ code, title = 'tool-preview' }: Props) {
-  const srcDoc = useMemo(() => code, [code])
+export default function BridgeIframe({ code, tool, title = 'tool-preview' }: Props) {
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const srcDoc = useMemo(() => (code ? injectBridge(code) : ''), [code])
+
+  useEffect(() => {
+    const iframe = iframeRef.current
+    if (!iframe || !tool || !code) return
+    const detach = attachBridge(iframe, tool)
+    return detach
+  }, [tool, code])
 
   if (!code) {
     return (
@@ -24,6 +36,7 @@ export default function BridgeIframe({ code, title = 'tool-preview' }: Props) {
 
   return (
     <iframe
+      ref={iframeRef}
       title={title}
       srcDoc={srcDoc}
       sandbox="allow-scripts"
