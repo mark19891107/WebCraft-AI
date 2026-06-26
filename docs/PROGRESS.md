@@ -6,7 +6,8 @@
 
 > 📌 部署策略：採「先打通 GitHub Pages 部署管線」優先，方便每一步都能線上驗證。
 > 部署來源使用 **GitHub Actions**（官方 `actions/deploy-pages`，不經 `gh-pages` 分支）。
-> 觸發分支為 `main` 與 `claude/repo-overview-zbalmv`，push 即自動建置並部署。
+> 因 `github-pages` environment 預設只允許從 `main` 部署，部署改由 **push 到 `main`** 觸發。
+> 開發仍在 `claude/repo-overview-zbalmv`，每次要線上驗證時將其合併進 `main`。
 
 ## 進度總覽
 
@@ -45,11 +46,8 @@
 
 ## 待使用者完成的一次性設定
 
-要讓 GitHub Pages 生效，需在 GitHub repo 設定一次：
+Pages 已透過 workflow 的 `enablement: true` 自動開啟，來源為 **GitHub Actions**，無需手動設定。
 
-1. 進入 repo → **Settings → Pages**
-2. **Source** 選擇 **GitHub Actions**
-3. 等 workflow 跑完後，網站會出現在 `https://mark19891107.github.io/WebCraft-AI/`
+部署成功後網站位於：`https://mark19891107.github.io/WebCraft-AI/`
 
-> workflow 已加上 `enablement: true`，多數情況會自動開啟 Pages；若沒有，手動把 Source 設為 **GitHub Actions** 即可。
 > 舊的 `gh-pages` 分支已不再使用，可自行刪除。
