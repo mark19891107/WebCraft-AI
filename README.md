@@ -2,6 +2,8 @@
 
 > 純前端的 AI 網頁工具生成平台 — 用對話描述需求，讓 LLM 幫你生成可互動的網頁工具。
 
+🔗 **線上版（Live Demo）：** https://mark19891107.github.io/WebCraft-AI/
+
 WebCraft AI 讓使用者透過自然語言描述需求，由 LLM 即時生成可互動的網頁工具。工具可綁定外部資料來源（CSV/JSON、API、MCP Server），生成後儲存在瀏覽器本地，並可透過匯出 JSON 定義檔分享給他人。整個系統部署在 GitHub Pages，**完全不需要後端伺服器**。
 
 ## ✨ 特色
