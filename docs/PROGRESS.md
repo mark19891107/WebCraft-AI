@@ -1,6 +1,7 @@
 # 實作進度
 
-追蹤 [實作計畫](superpowers/plans/2026-06-26-webcraft-ai.md) 各 Task 的完成狀態。
+執行順序改採 **[垂直切片 Roadmap](ROADMAP.md)**（小功能堆疊）；下表的 Task 編號沿用
+[原實作計畫](superpowers/plans/2026-06-26-webcraft-ai.md) 作為程式碼參考。
 
 **圖例：** ✅ 完成　🚧 進行中　⬜ 未開始
 
@@ -44,6 +45,7 @@
 - ✅ **Task 22**：建立 GitHub Actions 部署 workflow（`peaceiris/actions-gh-pages`），觸發分支含開發分支，提前實作以便線上驗證後續每一步。
 - 📝 新增本進度文件。
 - ✅ **Task 2**：建立 `src/types/index.ts`，定義所有共用型別（Message、ToolDefinition、ToolVersion、DataSource、Settings、MCP、Bridge 通訊協定、匯出格式），`tsc --noEmit` 通過。
+- 📝 新增 [垂直切片 Roadmap](ROADMAP.md)：重排實作順序為 S0–S9 小功能堆疊，並記錄 spec/計畫的待修缺陷（LLM 串流緩衝、bridge 內聯注入、MCP 握手、資料契約、安全提示等）。S0 已完成。
 
 ## 待使用者完成的一次性設定
 
