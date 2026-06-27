@@ -190,6 +190,10 @@ v1 (根)
 - System prompt 每輪帶入「當前版本完整程式碼」；對話歷史只留說明文字（不含程式碼/patch）。
 - patch 套用失敗時 fallback 要求 LLM 重新輸出完整程式碼。
 
+**自動修復：** 生成的工具在 iframe 內若發生執行期錯誤（`error` / `unhandledrejection`），由注入腳本以 `__wcToolError` 回報主頁面：
+- CreatePage 顯示錯誤橫幅，提供「自動修復」按鈕：把錯誤訊息當作一次修改回合（patch）餵給 LLM 修正，產生新版本。
+- 可開啟「偵測到錯誤自動修復」開關（預設關），開啟時自動修；設**最多連續 2 次**嘗試上限，避免無限迴圈與 token 浪費。手動修復或送出新訊息會重置計數。
+
 ### 3.6 MCP 連線
 
 - **SSE transport**：連接 `GET {url}/sse` 接收 SSE；工具呼叫透過 `POST {url}/messages`。
@@ -306,6 +310,7 @@ v1 (根)
 - ✅ **腦力激盪（需求 2）**：新增 `buildBrainstormSystemPrompt`，新工具預設先進腦力激盪（只問澄清問題、不寫碼）；「生成工具」按鈕隨時可按，LLM 以 `[READY]` 標記主動提示可生成（按鈕高亮，兩者並用）；腦力激盪對話即時持久化；標題列顯示「腦力激盪中／編輯中」狀態。
 - ✅ **對話 markdown 渲染**：新增 `Markdown` 元件（react-markdown + remark-gfm），assistant 回覆以 markdown 呈現（標題/清單/行內碼/表格/連結），使用者訊息維持純文字。
 - ✅ **多行輸入**：輸入框預設 2 行、最多 8 行自動增高；桌機 Enter 送出、Shift+Enter 換行（含提示），行動裝置 Enter 換行、以送出鈕送出。
+- ✅ **工具自動修復**：iframe 注入腳本回報執行期錯誤（`error`/`unhandledrejection`）；CreatePage 顯示錯誤橫幅 + 「自動修復」按鈕（將錯誤餵給 LLM 修正並建版本）；可選自動修復開關（預設關，連續上限 2 次）。
 
 ---
 

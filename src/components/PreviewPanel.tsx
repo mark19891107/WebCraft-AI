@@ -12,6 +12,7 @@ interface Props {
   // 串流生成中的即時程式碼（覆蓋顯示於「程式碼」頁籤）
   liveCode?: string
   streaming?: boolean
+  onToolError?: (message: string) => void
   onVersionSelect: (versionId: string) => void
   onVersionDelete: (versionId: string) => void
   onVersionLabel: (versionId: string, label: string) => void
@@ -24,6 +25,7 @@ export default function PreviewPanel({
   onChangeKey,
   liveCode,
   streaming,
+  onToolError,
   onVersionSelect,
   onVersionDelete,
   onVersionLabel,
@@ -42,7 +44,7 @@ export default function PreviewPanel({
           key: 'tool',
           label: '預覽',
           style: { height: 'calc(100vh - 160px)' },
-          children: <BridgeIframe code={savedCode} tool={tool} />,
+          children: <BridgeIframe code={savedCode} tool={tool} onError={onToolError} />,
         },
         {
           key: 'code',

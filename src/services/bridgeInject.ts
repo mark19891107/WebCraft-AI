@@ -3,6 +3,21 @@
 
 export const BRIDGE_INJECT_SCRIPT = `
 (function () {
+  // 將工具的執行期錯誤回報給主頁面（供自動修復使用）
+  function reportError(message, stack) {
+    try {
+      window.parent.postMessage({ __wcToolError: true, message: String(message || 'Unknown error'), stack: stack || '' }, '*');
+    } catch (e) {}
+  }
+  window.addEventListener('error', function (e) {
+    var loc = e.lineno ? (' (line ' + e.lineno + (e.colno ? ':' + e.colno : '') + ')') : '';
+    reportError((e.message || 'Script error') + loc, e.error && e.error.stack);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason;
+    reportError('Unhandled promise rejection: ' + ((r && r.message) || r), r && r.stack);
+  });
+
   var _reqId = 0;
   function call(type, payload) {
     return new Promise(function (resolve, reject) {

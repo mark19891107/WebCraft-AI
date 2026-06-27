@@ -1,6 +1,29 @@
-import { useState } from 'react'
-import { Layout, Button, Input, Space, message, Modal, Form, Typography, Grid, Tabs, Tag, Badge } from 'antd'
-import { SaveOutlined, ArrowLeftOutlined, DatabaseOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { useRef, useState } from 'react'
+import {
+  Layout,
+  Button,
+  Input,
+  Space,
+  message,
+  Modal,
+  Form,
+  Typography,
+  Grid,
+  Tabs,
+  Tag,
+  Badge,
+  Alert,
+  Switch,
+  Tooltip,
+} from 'antd'
+import {
+  SaveOutlined,
+  ArrowLeftOutlined,
+  DatabaseOutlined,
+  ThunderboltOutlined,
+  BugOutlined,
+  ToolOutlined,
+} from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import AppHeader from '../components/AppHeader'
@@ -56,6 +79,10 @@ export default function CreatePage() {
   const [mobileTab, setMobileTab] = useState('chat')
   const [generatingCode, setGeneratingCode] = useState(false)
   const [ready, setReady] = useState(false)
+  const [toolError, setToolError] = useState<string | null>(null)
+  const [autoFix, setAutoFix] = useState(false)
+  const autoFixAttempts = useRef(0)
+  const MAX_AUTO_FIX = 2
 
   const hasVersions = tool.versions.length > 0
 
@@ -130,10 +157,12 @@ export default function CreatePage() {
       message.warning('請先描述你想要的工具')
       return
     }
+    autoFixAttempts.current = 0
     const schema = await summarizeBoundData(tool.dataSources)
     const triggerMsg: Message = { role: 'user', content: '請根據以上討論，直接生成這個工具。' }
     const genMessages = [...messages, triggerMsg]
     setMessages(genMessages)
+    setToolError(null)
     setGeneratingCode(true)
     setPreviewTab('code')
     setMobileTab('preview')
@@ -165,6 +194,7 @@ export default function CreatePage() {
     const updatedMessages = [...messages, userMsg]
     setMessages(updatedMessages)
     setInput('')
+    setToolError(null)
     const schema = await summarizeBoundData(tool.dataSources)
     setGeneratingCode(true)
     setPreviewTab('code')
@@ -218,9 +248,36 @@ export default function CreatePage() {
     setPreviewTab('tool')
   }
 
+  // 把錯誤訊息餵給 LLM 修正，產生新版本
+  function repair(errMsg: string) {
+    if (streaming) return
+    setToolError(null)
+    editTurn({
+      role: 'user',
+      content: `這個工具在瀏覽器執行時發生 JavaScript 錯誤，請修正並確保不再發生：\n\n${errMsg}`,
+    })
+  }
+
+  // 收到工具執行期錯誤
+  function handleToolError(msg: string) {
+    if (streaming || generatingCode) return
+    setToolError(msg)
+    if (autoFix && autoFixAttempts.current < MAX_AUTO_FIX) {
+      autoFixAttempts.current += 1
+      repair(msg)
+    }
+  }
+
+  function manualRepair() {
+    if (!toolError) return
+    autoFixAttempts.current = 0
+    repair(toolError)
+  }
+
   function handleSend() {
     if (!input.trim() || streaming) return
     if (!llmReady()) return
+    autoFixAttempts.current = 0
     const userMsg: Message = { role: 'user', content: input }
     if (hasVersions) editTurn(userMsg)
     else runBrainstorm(userMsg)
@@ -229,6 +286,8 @@ export default function CreatePage() {
   function handleVersionSelect(versionId: string) {
     const version = tool.versions.find((v) => v.versionId === versionId)
     if (!version) return
+    autoFixAttempts.current = 0
+    setToolError(null)
     const updated = { ...tool, currentVersionId: versionId }
     setTool(updated)
     setMessages(version.conversation)
@@ -291,6 +350,7 @@ export default function CreatePage() {
       onChangeKey={setPreviewTab}
       liveCode={streamCode}
       streaming={generatingCode}
+      onToolError={handleToolError}
       onVersionSelect={handleVersionSelect}
       onVersionDelete={handleVersionDelete}
       onVersionLabel={handleVersionLabel}
@@ -331,6 +391,14 @@ export default function CreatePage() {
               </Button>
             </Badge>
           )}
+          {hasVersions && (
+            <Tooltip title="偵測到工具執行錯誤時自動修復（最多連續 2 次）">
+              <Space size={4}>
+                <ToolOutlined />
+                <Switch size="small" checked={autoFix} onChange={setAutoFix} />
+              </Space>
+            </Tooltip>
+          )}
           <Button icon={<DatabaseOutlined />} onClick={() => setBindOpen(true)}>
             資料{tool.dataSources.length ? ` (${tool.dataSources.length})` : ''}
           </Button>
@@ -339,6 +407,26 @@ export default function CreatePage() {
           </Button>
         </Space>
       </div>
+
+      {toolError && !generatingCode && !streaming && (
+        <Alert
+          type="error"
+          showIcon
+          banner
+          closable
+          onClose={() => setToolError(null)}
+          message={
+            <Typography.Text ellipsis style={{ maxWidth: '60vw' }}>
+              工具執行錯誤：{toolError}
+            </Typography.Text>
+          }
+          action={
+            <Button size="small" danger icon={<BugOutlined />} onClick={manualRepair}>
+              自動修復
+            </Button>
+          }
+        />
+      )}
 
       {isMobile ? (
         <Tabs
