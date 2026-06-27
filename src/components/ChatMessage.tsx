@@ -1,5 +1,6 @@
 import { Typography } from 'antd'
 import { Message } from '../types'
+import Markdown from './Markdown'
 
 interface Props {
   message?: Message
@@ -28,14 +29,17 @@ export default function ChatMessage({ message, streaming, streamText }: Props) {
           borderRadius: 8,
           background: isUser ? '#1668dc' : '#1f1f1f',
           border: isUser ? 'none' : '1px solid #303030',
-          whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}
       >
-        <Typography.Text style={{ color: isUser ? '#fff' : undefined }}>
-          {content}
-          {streaming && <span className="wc-caret">▌</span>}
-        </Typography.Text>
+        {isUser ? (
+          <Typography.Text style={{ color: '#fff', whiteSpace: 'pre-wrap' }}>{content}</Typography.Text>
+        ) : (
+          <>
+            <Markdown>{content}</Markdown>
+            {streaming && <span className="wc-caret">▌</span>}
+          </>
+        )}
       </div>
     </div>
   )

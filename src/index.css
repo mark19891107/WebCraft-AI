@@ -14,3 +14,60 @@ body,
     opacity: 0;
   }
 }
+
+/* 對話泡泡內的 markdown 樣式 */
+.wc-md > :first-child {
+  margin-top: 0;
+}
+.wc-md > :last-child {
+  margin-bottom: 0;
+}
+.wc-md p {
+  margin: 0 0 8px;
+}
+.wc-md ul,
+.wc-md ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.wc-md h1,
+.wc-md h2,
+.wc-md h3,
+.wc-md h4 {
+  margin: 8px 0 4px;
+  font-size: 1em;
+}
+.wc-md code {
+  background: rgba(255, 255, 255, 0.12);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.wc-md pre {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 8px 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.wc-md pre code {
+  background: none;
+  padding: 0;
+}
+.wc-md a {
+  color: #69b1ff;
+}
+.wc-md table {
+  border-collapse: collapse;
+  margin: 0 0 8px;
+}
+.wc-md th,
+.wc-md td {
+  border: 1px solid #424242;
+  padding: 4px 8px;
+}
+.wc-md blockquote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 3px solid #424242;
+  color: rgba(255, 255, 255, 0.65);
+}
