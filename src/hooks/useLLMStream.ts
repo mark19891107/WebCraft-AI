@@ -1,11 +1,14 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { Message, Settings } from '../types'
 import { streamLLM } from '../services/llm'
+import { splitStream } from '../services/patch'
 
 export function useLLMStream() {
   const [streaming, setStreaming] = useState(false)
-  const [streamText, setStreamText] = useState('')
+  const [rawText, setRawText] = useState('')
   const abortRef = useRef<AbortController | null>(null)
+
+  const split = useMemo(() => splitStream(rawText), [rawText])
 
   const start = useCallback(
     async (
@@ -15,13 +18,13 @@ export function useLLMStream() {
     ): Promise<string> => {
       abortRef.current = new AbortController()
       setStreaming(true)
-      setStreamText('')
+      setRawText('')
       try {
         const full = await streamLLM({
           settings,
           systemPrompt,
           messages,
-          onChunk: (chunk) => setStreamText((prev) => prev + chunk),
+          onChunk: (chunk) => setRawText((prev) => prev + chunk),
           signal: abortRef.current.signal,
         })
         return full
@@ -37,5 +40,14 @@ export function useLLMStream() {
     setStreaming(false)
   }, [])
 
-  return { streaming, streamText, start, abort }
+  return {
+    streaming,
+    // 給人看的說明（對話框）
+    streamExplanation: split.explanation,
+    // 程式碼/patch（程式碼頁籤即時呈現）
+    streamCode: split.code,
+    streamInCode: split.inCode,
+    start,
+    abort,
+  }
 }

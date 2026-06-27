@@ -9,19 +9,32 @@ hljs.registerLanguage('xml', xml)
 
 interface Props {
   code: string
+  // 串流生成中：純文字即時呈現並自動捲到底，不做語法高亮以免卡頓
+  streaming?: boolean
 }
 
-export default function CodeViewer({ code }: Props) {
+export default function CodeViewer({ code, streaming }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const ref = useRef<HTMLElement>(null)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    if (ref.current) {
+    if (!ref.current) return
+    if (streaming) {
+      // 即時更新文字，不高亮
       ref.current.removeAttribute('data-highlighted')
+      ref.current.className = 'language-xml'
+      ref.current.textContent = code
+      // 自動捲到最底，呈現「程式碼一行行被寫出」的感覺
+      const c = containerRef.current
+      if (c) c.scrollTop = c.scrollHeight
+    } else {
+      ref.current.removeAttribute('data-highlighted')
+      ref.current.className = 'language-xml'
       ref.current.textContent = code
       hljs.highlightElement(ref.current)
     }
-  }, [code])
+  }, [code, streaming])
 
   async function handleCopy() {
     try {
@@ -35,15 +48,17 @@ export default function CodeViewer({ code }: Props) {
   }
 
   return (
-    <div style={{ position: 'relative', height: '100%', overflow: 'auto' }}>
-      <Button
-        size="small"
-        icon={<CopyOutlined />}
-        onClick={handleCopy}
-        style={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}
-      >
-        {copied ? '已複製' : '複製'}
-      </Button>
+    <div ref={containerRef} style={{ position: 'relative', height: '100%', overflow: 'auto' }}>
+      {!streaming && code && (
+        <Button
+          size="small"
+          icon={<CopyOutlined />}
+          onClick={handleCopy}
+          style={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}
+        >
+          {copied ? '已複製' : '複製'}
+        </Button>
+      )}
       <pre style={{ margin: 0, padding: 12 }}>
         <code ref={ref} className="language-xml" style={{ fontSize: 12 }} />
       </pre>

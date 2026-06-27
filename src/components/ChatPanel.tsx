@@ -12,6 +12,7 @@ interface Props {
   onInputChange: (value: string) => void
   onSend: () => void
   onAbort: () => void
+  placeholder?: string
 }
 
 export default function ChatPanel({
@@ -22,6 +23,7 @@ export default function ChatPanel({
   onInputChange,
   onSend,
   onAbort,
+  placeholder = '描述需求或要修改的地方…',
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -33,7 +35,7 @@ export default function ChatPanel({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: 12, minHeight: 0 }}>
         {messages.length === 0 && !streaming ? (
-          <Empty description="描述你想要的工具，例如：「做一個番茄鐘計時器」" />
+          <Empty description={placeholder} />
         ) : (
           <>
             {messages.map((m, i) => (
@@ -48,7 +50,7 @@ export default function ChatPanel({
         <Input.TextArea
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
-          placeholder="描述需求或要修改的地方…"
+          placeholder={placeholder}
           autoSize={{ minRows: 1, maxRows: 5 }}
           disabled={streaming}
           onPressEnter={(e) => {

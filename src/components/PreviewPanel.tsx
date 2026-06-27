@@ -7,6 +7,11 @@ import VersionTree from './VersionTree'
 interface Props {
   tool: ToolDefinition
   currentVersion?: ToolVersion
+  activeKey: string
+  onChangeKey: (key: string) => void
+  // 串流生成中的即時程式碼（覆蓋顯示於「程式碼」頁籤）
+  liveCode?: string
+  streaming?: boolean
   onVersionSelect: (versionId: string) => void
   onVersionDelete: (versionId: string) => void
   onVersionLabel: (versionId: string, label: string) => void
@@ -15,15 +20,21 @@ interface Props {
 export default function PreviewPanel({
   tool,
   currentVersion,
+  activeKey,
+  onChangeKey,
+  liveCode,
+  streaming,
   onVersionSelect,
   onVersionDelete,
   onVersionLabel,
 }: Props) {
-  const code = currentVersion?.code ?? ''
+  const savedCode = currentVersion?.code ?? ''
+  const codeForViewer = streaming ? liveCode ?? '' : savedCode
 
   return (
     <Tabs
-      defaultActiveKey="tool"
+      activeKey={activeKey}
+      onChange={onChangeKey}
       style={{ height: '100%' }}
       tabBarStyle={{ paddingInline: 12, marginBottom: 0 }}
       items={[
@@ -31,13 +42,13 @@ export default function PreviewPanel({
           key: 'tool',
           label: '預覽',
           style: { height: 'calc(100vh - 160px)' },
-          children: <BridgeIframe code={code} tool={tool} />,
+          children: <BridgeIframe code={savedCode} tool={tool} />,
         },
         {
           key: 'code',
-          label: '程式碼',
+          label: streaming ? '程式碼 ✍️' : '程式碼',
           style: { height: 'calc(100vh - 160px)' },
-          children: <CodeViewer code={code} />,
+          children: <CodeViewer code={codeForViewer} streaming={streaming} />,
         },
         {
           key: 'versions',

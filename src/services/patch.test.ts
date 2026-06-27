@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePatches, applyPatches, extractExplanation, extractFullHtml } from './patch'
+import { parsePatches, applyPatches, extractExplanation, extractFullHtml, splitStream } from './patch'
 
 describe('parsePatches', () => {
   it('parses a single patch block', () => {
@@ -35,6 +35,34 @@ describe('extractExplanation', () => {
   it('removes patch blocks from text', () => {
     const response = `Adding a chart.\n<patch><find><![CDATA[x]]></find><replace><![CDATA[y]]></replace></patch>`
     expect(extractExplanation(response)).toBe('Adding a chart.')
+  })
+
+  it('removes html code fences (first-turn)', () => {
+    const response = '我做了一個計時器。\n```html\n<!DOCTYPE html><html></html>\n```'
+    expect(extractExplanation(response)).toBe('我做了一個計時器。')
+  })
+})
+
+describe('splitStream', () => {
+  it('separates explanation and fenced code', () => {
+    const r = splitStream('做好了。\n```html\n<h1>hi</h1>\n```')
+    expect(r.explanation).toBe('做好了。')
+    expect(r.code.trim()).toBe('<h1>hi</h1>')
+    expect(r.inCode).toBe(false)
+  })
+
+  it('marks inCode when fence is still open (streaming)', () => {
+    const r = splitStream('生成中…\n```html\n<h1>partial')
+    expect(r.explanation).toBe('生成中…')
+    expect(r.code).toContain('<h1>partial')
+    expect(r.inCode).toBe(true)
+  })
+
+  it('routes patch blocks to code, keeps prose as explanation', () => {
+    const r = splitStream('改一下。\n<patch><find><![CDATA[a]]></find><replace><![CDATA[b]]></replace></patch>')
+    expect(r.explanation).toBe('改一下。')
+    expect(r.code).toContain('<patch>')
+    expect(r.inCode).toBe(false)
   })
 })
 

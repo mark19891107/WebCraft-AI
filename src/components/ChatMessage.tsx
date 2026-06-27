@@ -10,8 +10,8 @@ interface Props {
 
 export default function ChatMessage({ message, streaming, streamText }: Props) {
   const role = message?.role ?? 'assistant'
-  const content = streaming ? streamText ?? '' : message?.content ?? ''
   const isUser = role === 'user'
+  const content = streaming ? (streamText && streamText.trim() ? streamText : '生成中…') : message?.content ?? ''
 
   return (
     <div
