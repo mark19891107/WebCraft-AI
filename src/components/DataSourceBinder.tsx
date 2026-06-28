@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Modal, Typography, Checkbox, Empty, Divider, Form, Input, Button, List, Space, Tag } from 'antd'
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { Modal, Typography, Checkbox, Empty, Divider, Input, Button, List, Space, Tag, message } from 'antd'
+import { DeleteOutlined, PlusOutlined, EditOutlined, CloseOutlined } from '@ant-design/icons'
 import { DataSource, MCPServer } from '../types'
 import { listFiles, isOPFSSupported, OPFSFileInfo } from '../services/opfs'
 
@@ -12,47 +12,72 @@ interface Props {
   onChange: (next: DataSource[]) => void
 }
 
+interface HeaderRow {
+  k: string
+  v: string
+}
+
 export default function DataSourceBinder({ open, dataSources, mcpServers, onClose, onChange }: Props) {
   const [files, setFiles] = useState<OPFSFileInfo[]>([])
-  const [apiForm] = Form.useForm<{ name: string; url: string }>()
+  const [apiName, setApiName] = useState('')
+  const [apiUrl, setApiUrl] = useState('')
+  const [apiHeaders, setApiHeaders] = useState<HeaderRow[]>([])
+  const [editingApi, setEditingApi] = useState<string | null>(null)
 
   useEffect(() => {
     if (open && isOPFSSupported()) listFiles('/data').then(setFiles)
   }, [open])
 
-  const boundFileNames = new Set(
-    dataSources.filter((d) => d.type === 'file').map((d) => d.name),
-  )
-  const apiSources = dataSources.filter((d) => d.type === 'api')
-  const boundMcpRefs = new Set(
-    dataSources.filter((d) => d.type === 'mcp').map((d) => d.serverRef),
-  )
+  const boundFileNames = new Set(dataSources.filter((d) => d.type === 'file').map((d) => d.name))
+  const apiSources = dataSources.filter((d): d is Extract<DataSource, { type: 'api' }> => d.type === 'api')
+  const boundMcpRefs = new Set(dataSources.filter((d) => d.type === 'mcp').map((d) => d.serverRef))
 
   function toggleMcp(server: MCPServer, checked: boolean) {
     const others = dataSources.filter((d) => !(d.type === 'mcp' && d.serverRef === server.id))
-    if (checked) {
-      onChange([...others, { type: 'mcp', name: server.name, serverRef: server.id }])
-    } else {
-      onChange(others)
-    }
+    onChange(checked ? [...others, { type: 'mcp', name: server.name, serverRef: server.id }] : others)
   }
 
   function toggleFile(info: OPFSFileInfo, checked: boolean) {
     const others = dataSources.filter((d) => !(d.type === 'file' && d.name === info.name))
-    if (checked) {
-      onChange([...others, { type: 'file', name: info.name, opfsPath: info.path }])
-    } else {
-      onChange(others)
-    }
+    onChange(checked ? [...others, { type: 'file', name: info.name, opfsPath: info.path }] : others)
   }
 
-  function addApi(values: { name: string; url: string }) {
-    if (dataSources.some((d) => d.name === values.name)) return
-    onChange([...dataSources, { type: 'api', name: values.name, url: values.url, headers: {} }])
-    apiForm.resetFields()
+  function resetApiDraft() {
+    setApiName('')
+    setApiUrl('')
+    setApiHeaders([])
+    setEditingApi(null)
+  }
+
+  function saveApi() {
+    const name = apiName.trim()
+    const url = apiUrl.trim()
+    if (!name || !url) {
+      message.warning('請填入名稱與 URL')
+      return
+    }
+    if (name !== editingApi && dataSources.some((d) => d.name === name)) {
+      message.warning('已有同名來源')
+      return
+    }
+    const headers: Record<string, string> = {}
+    apiHeaders.forEach((h) => {
+      if (h.k.trim()) headers[h.k.trim()] = h.v
+    })
+    const others = dataSources.filter((d) => !(d.type === 'api' && d.name === editingApi))
+    onChange([...others, { type: 'api', name, url, headers }])
+    resetApiDraft()
+  }
+
+  function editApi(d: Extract<DataSource, { type: 'api' }>) {
+    setEditingApi(d.name)
+    setApiName(d.name)
+    setApiUrl(d.url)
+    setApiHeaders(Object.entries(d.headers ?? {}).map(([k, v]) => ({ k, v })))
   }
 
   function removeSource(name: string) {
+    if (editingApi === name) resetApiDraft()
     onChange(dataSources.filter((d) => d.name !== name))
   }
 
@@ -85,6 +110,7 @@ export default function DataSourceBinder({ open, dataSources, mcpServers, onClos
           renderItem={(d) => (
             <List.Item
               actions={[
+                <Button key="edit" type="text" size="small" icon={<EditOutlined />} onClick={() => editApi(d)} />,
                 <Button
                   key="del"
                   type="text"
@@ -96,26 +122,53 @@ export default function DataSourceBinder({ open, dataSources, mcpServers, onClos
               ]}
             >
               <Tag color="green">{d.name}</Tag>
-              <Typography.Text type="secondary" ellipsis style={{ maxWidth: 240 }}>
-                {d.type === 'api' ? d.url : ''}
+              <Typography.Text type="secondary" ellipsis style={{ maxWidth: 200 }}>
+                {d.url}
               </Typography.Text>
+              {Object.keys(d.headers ?? {}).length > 0 && <Tag>{Object.keys(d.headers).length} headers</Tag>}
             </List.Item>
           )}
         />
       )}
-      <Form form={apiForm} layout="inline" onFinish={addApi} style={{ marginTop: 8, rowGap: 8 }}>
-        <Form.Item name="name" rules={[{ required: true, message: '名稱' }]}>
-          <Input placeholder="名稱" style={{ width: 120 }} />
-        </Form.Item>
-        <Form.Item name="url" rules={[{ required: true, message: 'URL' }]}>
-          <Input placeholder="https://api.example.com/..." style={{ width: 200 }} />
-        </Form.Item>
-        <Form.Item>
-          <Button htmlType="submit" icon={<PlusOutlined />}>
-            新增
+
+      <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
+        <Input placeholder="名稱（例如：新聞）" value={apiName} onChange={(e) => setApiName(e.target.value)} />
+        <Input placeholder="https://api.example.com/..." value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} />
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          請求標頭（Headers，可選，例如 Authorization）
+        </Typography.Text>
+        {apiHeaders.map((h, i) => (
+          <Space.Compact key={i} style={{ width: '100%' }}>
+            <Input
+              placeholder="Header 名稱"
+              value={h.k}
+              onChange={(e) =>
+                setApiHeaders((prev) => prev.map((x, j) => (j === i ? { ...x, k: e.target.value } : x)))
+              }
+            />
+            <Input
+              placeholder="值"
+              value={h.v}
+              onChange={(e) =>
+                setApiHeaders((prev) => prev.map((x, j) => (j === i ? { ...x, v: e.target.value } : x)))
+              }
+            />
+            <Button
+              icon={<CloseOutlined />}
+              onClick={() => setApiHeaders((prev) => prev.filter((_, j) => j !== i))}
+            />
+          </Space.Compact>
+        ))}
+        <Space>
+          <Button size="small" icon={<PlusOutlined />} onClick={() => setApiHeaders((prev) => [...prev, { k: '', v: '' }])}>
+            加一列標頭
           </Button>
-        </Form.Item>
-      </Form>
+          <Button type="primary" onClick={saveApi}>
+            {editingApi ? '儲存修改' : '新增 API 來源'}
+          </Button>
+          {editingApi && <Button onClick={resetApiDraft}>取消</Button>}
+        </Space>
+      </Space>
 
       <Divider />
 
