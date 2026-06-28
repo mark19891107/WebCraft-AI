@@ -64,3 +64,43 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+---
+
+## Project-specific: WebCraft AI
+
+Pure-frontend AI web-tool generator (React 18 + TypeScript + Vite + Ant Design 5,
+HashRouter), deployed to GitHub Pages. No backend.
+
+### Workflow
+
+- **Develop on** `claude/repo-overview-zbalmv`. Deployment triggers on push to
+  `main`, so merge dev → `main` (`--ff-only`) when a change is ready to verify live.
+- **Verify before merging** — all three must pass: `npx tsc --noEmit`,
+  `npx vitest run`, `npm run build`.
+- Commit one logical change at a time. End commit messages with the
+  `Co-Authored-By:` and `Claude-Session:` footer lines.
+- Tests live next to source as `*.test.ts` (vitest). Add/extend tests for
+  pure logic (parsers, diff, patch).
+- UI copy is Traditional Chinese (zh-Hant).
+
+### Single source of truth for docs
+
+`docs/webcraft-ai.md` holds spec, architecture, roadmap, and changelog. Update its
+變更紀錄 when adding/changing features — don't create new scattered doc files.
+
+### Architecture gotchas (don't reintroduce fixed bugs)
+
+- Generated tools run in a sandboxed iframe (`sandbox="allow-scripts"`, `srcdoc`,
+  origin `null`). They **cannot** use `localStorage`/`sessionStorage` — persistence
+  goes through `window.bridge.storage`. The bridge script is **inlined** into the
+  srcdoc (an opaque-origin iframe can't load it by URL).
+- Use Ant Design theme tokens (`theme.useToken()`) for colors, **not hardcoded
+  hex** — the app supports dark/light via `ThemeProvider`.
+- Do **not** hand-split `react`/`antd`/`icons` via Vite `manualChunks` — it breaks
+  cross-chunk init order (`Cannot read properties of undefined (reading 'primary')`).
+  Rely on Vite's default chunking.
+- LLM streaming must buffer partial SSE lines across network chunks (a `data:` line
+  can split across reads).
+- Bridge resolves data-source/MCP names tolerantly (exact → case/space-insensitive
+  → single source of that type) because the LLM may rename sources in generated code.
