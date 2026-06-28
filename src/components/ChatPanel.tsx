@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Input, Button, Empty, Grid, Typography } from 'antd'
+import { Input, Button, Empty, Grid, Typography, theme } from 'antd'
 import { SendOutlined, StopOutlined } from '@ant-design/icons'
 import { Message } from '../types'
 import ChatMessage from './ChatMessage'
@@ -29,6 +29,7 @@ export default function ChatPanel({
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const screens = useBreakpoint()
+  const { token } = theme.useToken()
   const isMobile = screens.md === false
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function ChatPanel({
         )}
       </div>
 
-      <div style={{ padding: 12, borderTop: '1px solid #303030' }}>
+      <div style={{ padding: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <Input.TextArea
             value={input}

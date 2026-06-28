@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Layout, Typography, Button, Drawer, Grid, Space } from 'antd'
+import { Layout, Typography, Button, Drawer, Grid, Space, Switch, theme } from 'antd'
 import {
   ThunderboltOutlined,
   AppstoreOutlined,
@@ -8,6 +8,7 @@ import {
   MenuOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useThemeMode } from '../theme'
 
 const { Header } = Layout
 const { useBreakpoint } = Grid
@@ -32,15 +33,26 @@ export default function AppHeader() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const screens = useBreakpoint()
+  const { token } = theme.useToken()
+  const { mode, toggle } = useThemeMode()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  // screens.md 為 undefined 時（首次渲染）視為桌機，避免閃動
   const isMobile = screens.md === false
 
   function go(key: string) {
     navigate(key)
     setDrawerOpen(false)
   }
+
+  const themeSwitch = (
+    <Switch
+      checked={mode === 'dark'}
+      onChange={toggle}
+      checkedChildren="🌙"
+      unCheckedChildren="☀️"
+      aria-label="切換深色/淺色模式"
+    />
+  )
 
   return (
     <Header
@@ -49,8 +61,8 @@ export default function AppHeader() {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 16px',
-        background: '#141414',
-        borderBottom: '1px solid #303030',
+        background: token.colorBgContainer,
+        borderBottom: `1px solid ${token.colorBorderSecondary}`,
         position: 'sticky',
         top: 0,
         zIndex: 100,
@@ -58,19 +70,20 @@ export default function AppHeader() {
     >
       <Typography.Title
         level={4}
-        style={{ margin: 0, color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
+        style={{ margin: 0, color: token.colorText, cursor: 'pointer', whiteSpace: 'nowrap' }}
         onClick={() => go('/')}
       >
-        <ThunderboltOutlined style={{ marginRight: 8 }} />
+        <ThunderboltOutlined style={{ marginRight: 8, color: token.colorPrimary }} />
         WebCraft AI
       </Typography.Title>
 
       {isMobile ? (
-        <>
+        <Space>
+          {themeSwitch}
           <Button
             type="text"
             aria-label="開啟選單"
-            icon={<MenuOutlined style={{ color: '#fff', fontSize: 18 }} />}
+            icon={<MenuOutlined style={{ fontSize: 18 }} />}
             onClick={() => setDrawerOpen(true)}
           />
           <Drawer
@@ -97,9 +110,10 @@ export default function AppHeader() {
               ))}
             </Space>
           </Drawer>
-        </>
+        </Space>
       ) : (
         <Space>
+          {themeSwitch}
           {NAV.map((item) => (
             <Button
               key={item.key}

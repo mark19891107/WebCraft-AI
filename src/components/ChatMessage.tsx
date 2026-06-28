@@ -1,4 +1,4 @@
-import { Typography } from 'antd'
+import { theme, Typography } from 'antd'
 import { Message } from '../types'
 import Markdown from './Markdown'
 
@@ -10,6 +10,7 @@ interface Props {
 }
 
 export default function ChatMessage({ message, streaming, streamText }: Props) {
+  const { token } = theme.useToken()
   const role = message?.role ?? 'assistant'
   const isUser = role === 'user'
   const content = streaming ? (streamText && streamText.trim() ? streamText : '生成中…') : message?.content ?? ''
@@ -27,8 +28,9 @@ export default function ChatMessage({ message, streaming, streamText }: Props) {
           maxWidth: '85%',
           padding: '8px 12px',
           borderRadius: 8,
-          background: isUser ? '#1668dc' : '#1f1f1f',
-          border: isUser ? 'none' : '1px solid #303030',
+          background: isUser ? token.colorPrimary : token.colorFillSecondary,
+          color: isUser ? '#fff' : token.colorText,
+          border: isUser ? 'none' : `1px solid ${token.colorBorderSecondary}`,
           wordBreak: 'break-word',
         }}
       >

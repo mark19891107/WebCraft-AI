@@ -37,14 +37,15 @@ body,
   margin: 8px 0 4px;
   font-size: 1em;
 }
+/* 文字色繼承自泡泡（已用 token.colorText 設定）；其餘用灰階半透明，深淺主題皆清楚 */
 .wc-md code {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(127, 127, 127, 0.22);
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 0.9em;
 }
 .wc-md pre {
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(127, 127, 127, 0.16);
   padding: 8px 10px;
   border-radius: 6px;
   overflow-x: auto;
@@ -54,7 +55,7 @@ body,
   padding: 0;
 }
 .wc-md a {
-  color: #69b1ff;
+  color: #1677ff;
 }
 .wc-md table {
   border-collapse: collapse;
@@ -62,12 +63,12 @@ body,
 }
 .wc-md th,
 .wc-md td {
-  border: 1px solid #424242;
+  border: 1px solid rgba(127, 127, 127, 0.4);
   padding: 4px 8px;
 }
 .wc-md blockquote {
   margin: 0 0 8px;
   padding-left: 10px;
-  border-left: 3px solid #424242;
-  color: rgba(255, 255, 255, 0.65);
+  border-left: 3px solid rgba(127, 127, 127, 0.5);
+  opacity: 0.8;
 }

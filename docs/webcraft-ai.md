@@ -313,6 +313,8 @@ v1 (根)
 - ✅ **工具自動修復**：iframe 注入腳本回報執行期錯誤（`error`/`unhandledrejection`）；CreatePage 顯示錯誤橫幅 + 「自動修復」按鈕（將錯誤餵給 LLM 修正並建版本）；可選自動修復開關（預設關，連續上限 2 次）。
 - ✅ **Bundle 拆分**：各頁改用 `React.lazy` 路由層級 code-splitting（首頁不再載入 markdown/highlight），交由 Vite 預設分塊產生多個合理小塊；放寬 `chunkSizeWarningLimit` 消除警告。
 - 🐛 **修正**：先前自訂 `manualChunks` 把 `react / antd / icons` 拆到不同 chunk，破壞跨 chunk 初始化順序，導致一開網頁就 `Cannot read properties of undefined (reading 'primary')`。改回 Vite 預設分塊修正。
+- 🐛 **修正深色模式文字看不見**：對話泡泡的 markdown 用原生元素渲染、繼承到預設黑字，在深色泡泡上看不清。改用 antd theme token（`colorText`/`colorFillSecondary`/`colorBorderSecondary`）上色，markdown 程式碼/表格改用灰階半透明（深淺皆清楚）。
+- ✅ **Dark / Light 切換**：新增 `ThemeProvider`（持久化於 localStorage、同步 `<body>` 背景），Header 加入主題切換開關；AppHeader/ChatMessage/ChatPanel/CreatePage 等寫死顏色改用 token。
 
 ---
 

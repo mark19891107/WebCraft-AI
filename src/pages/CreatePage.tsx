@@ -15,6 +15,7 @@ import {
   Alert,
   Switch,
   Tooltip,
+  theme,
 } from 'antd'
 import {
   SaveOutlined,
@@ -67,6 +68,7 @@ export default function CreatePage() {
   const { settings } = useSettings()
   const { streaming, streamExplanation, streamCode, start, abort } = useLLMStream()
   const screens = useBreakpoint()
+  const { token } = theme.useToken()
   const isMobile = screens.md === false
 
   const [tool, setTool] = useState<ToolDefinition>(() => (id ? getTool(id) ?? newTool('新工具') : newTool('新工具')))
@@ -367,7 +369,7 @@ export default function CreatePage() {
           alignItems: 'center',
           gap: 8,
           padding: '8px 16px',
-          borderBottom: '1px solid #303030',
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
           flexWrap: 'wrap',
         }}
       >
@@ -441,7 +443,9 @@ export default function CreatePage() {
         />
       ) : (
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          <div style={{ width: '40%', borderRight: '1px solid #303030', minHeight: 0 }}>{chat}</div>
+          <div style={{ width: '40%', borderRight: `1px solid ${token.colorBorderSecondary}`, minHeight: 0 }}>
+            {chat}
+          </div>
           <div style={{ flex: 1, minHeight: 0 }}>{preview}</div>
         </div>
       )}
