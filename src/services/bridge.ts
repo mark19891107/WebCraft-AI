@@ -1,4 +1,4 @@
-import { BridgeRequest, BridgeResponse, ToolDefinition } from '../types'
+import { BridgeRequest, BridgeResponse, ToolDefinition, DataSource, MCPServer } from '../types'
 import { streamLLM } from './llm'
 import { readFileAsText } from './opfs'
 import { parseData } from './dataSource'
@@ -7,6 +7,38 @@ import { loadSettings } from '../store/settingsStore'
 
 function reply(iframe: HTMLIFrameElement, msg: BridgeResponse) {
   iframe.contentWindow?.postMessage(msg, '*')
+}
+
+const norm = (s: string) => s.trim().toLowerCase()
+
+/**
+ * 容錯解析資料來源：精確名稱 → 忽略大小寫/空白 → 若該類型只有一個來源就用它。
+ * 後者可救「LLM 把中文名翻成英文」導致名稱對不上的情況。
+ */
+function resolveDataSource(
+  sources: DataSource[],
+  type: 'file' | 'api',
+  name: string,
+): DataSource | undefined {
+  const ofType = sources.filter((ds) => ds.type === type)
+  return (
+    ofType.find((ds) => ds.name === name) ??
+    ofType.find((ds) => norm(ds.name) === norm(name)) ??
+    (ofType.length === 1 ? ofType[0] : undefined)
+  )
+}
+
+function resolveServer(servers: MCPServer[], name: string): MCPServer | undefined {
+  return (
+    servers.find((s) => s.name === name) ??
+    servers.find((s) => norm(s.name) === norm(name)) ??
+    (servers.length === 1 ? servers[0] : undefined)
+  )
+}
+
+function availableNames(sources: DataSource[], type: string): string {
+  const names = sources.filter((ds) => ds.type === type).map((ds) => ds.name)
+  return names.length ? names.join(', ') : '（無）'
 }
 
 async function handle(event: MessageEvent, iframe: HTMLIFrameElement, tool: ToolDefinition) {
@@ -35,9 +67,13 @@ async function handle(event: MessageEvent, iframe: HTMLIFrameElement, tool: Tool
       }
 
       case 'data.read': {
-        const source = tool.dataSources.find((ds) => ds.name === req.name && ds.type === 'file')
+        const source = resolveDataSource(tool.dataSources, 'file', req.name)
         if (!source || source.type !== 'file') {
-          reply(iframe, { requestId, error: `找不到資料來源 "${req.name}"`, done: true })
+          reply(iframe, {
+            requestId,
+            error: `找不到資料來源 "${req.name}"（可用：${availableNames(tool.dataSources, 'file')}）`,
+            done: true,
+          })
           return
         }
         const text = await readFileAsText(source.opfsPath)
@@ -53,9 +89,13 @@ async function handle(event: MessageEvent, iframe: HTMLIFrameElement, tool: Tool
       }
 
       case 'api.fetch': {
-        const source = tool.dataSources.find((ds) => ds.name === req.name && ds.type === 'api')
+        const source = resolveDataSource(tool.dataSources, 'api', req.name)
         if (!source || source.type !== 'api') {
-          reply(iframe, { requestId, error: `找不到 API 來源 "${req.name}"`, done: true })
+          reply(iframe, {
+            requestId,
+            error: `找不到 API 來源 "${req.name}"（可用：${availableNames(tool.dataSources, 'api')}）`,
+            done: true,
+          })
           return
         }
         const resp = await fetch(source.url, {
@@ -72,7 +112,7 @@ async function handle(event: MessageEvent, iframe: HTMLIFrameElement, tool: Tool
       }
 
       case 'mcp.call': {
-        const server = settings.mcpServers.find((s) => s.name === req.serverName)
+        const server = resolveServer(settings.mcpServers, req.serverName)
         if (!server) {
           reply(iframe, { requestId, error: `找不到 MCP server "${req.serverName}"`, done: true })
           return
@@ -83,7 +123,7 @@ async function handle(event: MessageEvent, iframe: HTMLIFrameElement, tool: Tool
       }
 
       case 'mcp.listTools': {
-        const server = settings.mcpServers.find((s) => s.name === req.serverName)
+        const server = resolveServer(settings.mcpServers, req.serverName)
         if (!server) {
           reply(iframe, { requestId, error: `找不到 MCP server "${req.serverName}"`, done: true })
           return

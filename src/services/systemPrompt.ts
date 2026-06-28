@@ -19,9 +19,11 @@ const data = await window.bridge.api.fetch('weather-api')
 `
 
 function listSources(dataSources: ToolDefinition['dataSources']): string {
-  return dataSources.length
-    ? dataSources.map((ds) => `- ${ds.name}（type: ${ds.type}）`).join('\n')
-    : '（無）'
+  if (!dataSources.length) return '（無）'
+  const lines = dataSources.map((ds) => `- "${ds.name}"（type: ${ds.type}）`).join('\n')
+  return `${lines}
+
+⚠️ 重要：呼叫 \`window.bridge\` 時，name/serverName 參數必須**一字不差**地使用上面引號內的名稱（即使是中文也照用，**絕對不要翻譯、改寫或加減空白**）。例如資料來源叫 "新聞" 就要寫 \`bridge.api.fetch('新聞')\`，不可寫成 'news'。`
 }
 
 // 腦力激盪階段：只澄清需求、不寫程式碼
