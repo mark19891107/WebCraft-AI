@@ -321,6 +321,17 @@ v1 (根)
 - ✅ **桌機聊天欄固定寬度**：改 `flex:0 0 400px` + 預覽欄 `minWidth:0`，寬程式碼在頁籤內捲動、不再撐動聊天欄。
 - ✅ **資料來源名稱容錯**：LLM 可能把中文來源名翻成英文（如「新聞」→`news`）導致 bridge 找不到。bridge 改為容錯解析（精確→忽略大小寫/空白→該類型唯一來源就用它），並在 system prompt 明確要求名稱一字不差照用、勿翻譯。
 
+#### 2026-06-27（功能擴充批次）
+- ✅ **`bridge.storage`**：沙箱工具可持久化自己的狀態（get/set/remove/keys，依工具 id 隔離），解鎖待辦/筆記類工具；prompt 文件化並警告勿用 localStorage。
+- ✅ **API 來源完整設定**：DataSourceBinder 可設定/編輯請求標頭（Authorization 等），支援需認證的 API。
+- ✅ **版本差異比對**：`diff.ts`（LCS，4 測試）+ PreviewPanel「差異」頁籤，顯示與上一版的增刪。
+- ✅ **儲存空間用量 + 版本精簡**：設定頁顯示 localStorage 用量；版本面板可「只留目前版本」。
+- ✅ **首頁搜尋 + 複製 + 範本**：搜尋過濾、複製工具、內建範本（計數器/筆記/JSON 美化，示範 bridge.storage）。
+- ✅ **分享連結**：把工具編碼進 `#/import?d=...`，一鍵複製；ImportPage 解碼匯入。
+- ✅ **Token 用量顯示**：解析 `stream_options.include_usage`，工具列顯示上次生成 token 數。
+- ✅ **快捷動作**：重新生成 / 編輯 / 刪除最後一則（編輯回合會還原版本後重做）。
+- ✅ **資料預覽**：DataPage 可預覽檔案開頭（CSV→表格、JSON→格式化），用 `readFilePrefix` 避免讀整個大檔。
+
 ---
 
 ## 7. 附錄：各 Task 實作參考（程式碼）

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Layout, Table, Button, Upload, message, Typography, Tag, Alert, Popconfirm } from 'antd'
-import { UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Layout, Table, Button, Upload, message, Typography, Tag, Alert, Popconfirm, Modal, Space } from 'antd'
+import { UploadOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
 import AppHeader from '../components/AppHeader'
-import { listFiles, writeFile, deleteFile, isOPFSSupported, OPFSFileInfo } from '../services/opfs'
+import { listFiles, writeFile, deleteFile, readFilePrefix, isOPFSSupported, OPFSFileInfo } from '../services/opfs'
+import { parseData } from '../services/dataSource'
 
 const { Content } = Layout
 
@@ -13,10 +14,31 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
+interface Preview {
+  name: string
+  rows?: Record<string, unknown>[]
+  text?: string
+}
+
 export default function DataPage() {
   const [files, setFiles] = useState<OPFSFileInfo[]>([])
   const [uploading, setUploading] = useState(false)
+  const [preview, setPreview] = useState<Preview | null>(null)
   const supported = isOPFSSupported()
+
+  async function handlePreview(info: OPFSFileInfo) {
+    try {
+      const text = await readFilePrefix(info.path)
+      const parsed = parseData(info.name, text)
+      if (Array.isArray(parsed)) {
+        setPreview({ name: info.name, rows: parsed.slice(0, 50) as Record<string, unknown>[] })
+      } else {
+        setPreview({ name: info.name, text: typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2) })
+      }
+    } catch {
+      message.error('無法讀取檔案')
+    }
+  }
 
   async function loadFiles() {
     setFiles(await listFiles('/data'))
@@ -61,17 +83,20 @@ export default function DataPage() {
     },
     {
       title: '操作',
-      width: 100,
+      width: 130,
       render: (_: unknown, record: OPFSFileInfo) => (
-        <Popconfirm
-          title={`刪除 ${record.name}？`}
-          okText="刪除"
-          okButtonProps={{ danger: true }}
-          cancelText="取消"
-          onConfirm={() => handleDelete(record.path, record.name)}
-        >
-          <Button danger size="small" icon={<DeleteOutlined />} />
-        </Popconfirm>
+        <Space>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => handlePreview(record)} />
+          <Popconfirm
+            title={`刪除 ${record.name}？`}
+            okText="刪除"
+            okButtonProps={{ danger: true }}
+            cancelText="取消"
+            onConfirm={() => handleDelete(record.path, record.name)}
+          >
+            <Button danger size="small" icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
     },
   ]
@@ -118,6 +143,37 @@ export default function DataPage() {
           locale={{ emptyText: '尚無資料檔案，請上傳 CSV 或 JSON' }}
           scroll={{ x: 'max-content' }}
         />
+
+        <Modal
+          title={`預覽：${preview?.name ?? ''}`}
+          open={!!preview}
+          onCancel={() => setPreview(null)}
+          footer={null}
+          width={800}
+        >
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            僅預覽檔案開頭一段{preview?.rows ? `（前 ${preview.rows.length} 列）` : ''}
+          </Typography.Text>
+          {preview?.rows ? (
+            <Table
+              style={{ marginTop: 8 }}
+              size="small"
+              dataSource={preview.rows.map((r, i) => ({ ...r, __i: i }))}
+              rowKey="__i"
+              columns={Object.keys(preview.rows[0] ?? {}).map((k) => ({
+                title: k,
+                dataIndex: k,
+                ellipsis: true,
+              }))}
+              pagination={false}
+              scroll={{ x: 'max-content', y: 400 }}
+            />
+          ) : (
+            <pre style={{ marginTop: 8, maxHeight: 440, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
+              {preview?.text}
+            </pre>
+          )}
+        </Modal>
       </Content>
     </Layout>
   )

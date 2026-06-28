@@ -27,6 +27,13 @@ export async function readFileAsText(path: string): Promise<string> {
   return file.text()
 }
 
+// 只讀取檔案開頭一段（供預覽，避免讀進整個大檔）
+export async function readFilePrefix(path: string, maxBytes = 65536): Promise<string> {
+  const handle = await getFileHandle(path, false)
+  const file = await handle.getFile()
+  return file.slice(0, maxBytes).text()
+}
+
 export async function getFileSize(path: string): Promise<number> {
   const handle = await getFileHandle(path, false)
   const file = await handle.getFile()
