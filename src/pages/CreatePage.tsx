@@ -107,25 +107,45 @@ export default function CreatePage() {
     if (!id) navigate(`/create/${updated.id}`, { replace: true })
   }
 
-  function commitVersion(code: string, conversation: Message[]) {
+  function commitVersion(code: string, conversation: Message[], baseTool: ToolDefinition = tool) {
     const versionId = uuidv4()
     const version: ToolVersion = {
       versionId,
-      parentVersionId: tool.currentVersionId || null,
+      parentVersionId: baseTool.currentVersionId || null,
       createdAt: new Date().toISOString(),
       code,
       conversation,
     }
     const updated: ToolDefinition = {
-      ...tool,
+      ...baseTool,
       updatedAt: new Date().toISOString(),
       currentVersionId: versionId,
-      versions: [...tool.versions, version],
+      versions: [...baseTool.versions, version],
       conversation,
     }
     setTool(updated)
     save(updated)
     if (!id) navigate(`/create/${updated.id}`, { replace: true })
+  }
+
+  function lastUserIndex(): number {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === 'user') return i
+    return -1
+  }
+
+  // 編輯回合：把目前版本還原到其上一版（供「重新生成/編輯/刪除最後一則」用）
+  function revertedEditTool(): { tool: ToolDefinition; baseCode: string } | null {
+    if (!currentVersion) return null
+    const parentId = currentVersion.parentVersionId
+    const parent = parentId ? tool.versions.find((v) => v.versionId === parentId) : undefined
+    return {
+      tool: {
+        ...tool,
+        versions: tool.versions.filter((v) => v.versionId !== currentVersion.versionId),
+        currentVersionId: parentId ?? '',
+      },
+      baseCode: parent?.code ?? '',
+    }
   }
 
   function handleBind(dataSources: DataSource[]) {
@@ -134,15 +154,12 @@ export default function CreatePage() {
     save(updated)
   }
 
-  // 腦力激盪：問問題（結構化表單）、偵測 ready 標記
-  async function runBrainstorm(userMsg: Message) {
-    const updatedMessages = [...messages, userMsg]
-    setMessages(updatedMessages)
-    setInput('')
+  // 腦力激盪核心：對給定對話產生回應（問題表單 / ready）
+  async function brainstormCore(convo: Message[]) {
     setQuestions(null)
     let full: string
     try {
-      full = await start(settings.llm, buildBrainstormSystemPrompt(tool.dataSources), updatedMessages)
+      full = await start(settings.llm, buildBrainstormSystemPrompt(tool.dataSources), convo)
     } catch (err) {
       if (String(err).includes('AbortError')) return
       message.error(`LLM 請求失敗：${err}`)
@@ -152,11 +169,18 @@ export default function CreatePage() {
     const form = isReady ? null : parseBrainstorm(full)
     const content =
       extractExplanation(full).split(READY_MARKER).join('').trim() || form?.intro || '（請回答以下問題）'
-    const newConversation: Message[] = [...updatedMessages, { role: 'assistant', content }]
+    const newConversation: Message[] = [...convo, { role: 'assistant', content }]
     setMessages(newConversation)
     persistConversation(newConversation)
     setQuestions(form?.questions ?? null)
     if (isReady) setReady(true)
+  }
+
+  function runBrainstorm(userMsg: Message) {
+    const convo = [...messages, userMsg]
+    setMessages(convo)
+    setInput('')
+    brainstormCore(convo)
   }
 
   // 首輪生成：依目前對話生成完整 HTML
@@ -201,24 +225,17 @@ export default function CreatePage() {
     setPreviewTab('tool')
   }
 
-  // 後續增量修改（patch）
-  async function editTurn(userMsg: Message) {
-    const updatedMessages = [...messages, userMsg]
-    setMessages(updatedMessages)
-    setInput('')
+  // 編輯核心：對 baseCode 套用 patch，產生新版本（掛在 baseTool 之下）
+  async function editCore(convo: Message[], baseCode: string, baseTool: ToolDefinition) {
     setToolError(null)
-    const schema = await summarizeBoundData(tool.dataSources)
+    const schema = await summarizeBoundData(baseTool.dataSources)
     setGenKind('patch')
     setGeneratingCode(true)
     setPreviewTab('code')
     setMobileTab('preview')
     let full: string
     try {
-      full = await start(
-        settings.llm,
-        buildPatchSystemPrompt(currentVersion?.code ?? '', tool.dataSources, schema),
-        updatedMessages,
-      )
+      full = await start(settings.llm, buildPatchSystemPrompt(baseCode, baseTool.dataSources, schema), convo)
     } catch (err) {
       setGeneratingCode(false)
       if (String(err).includes('AbortError')) return
@@ -229,14 +246,14 @@ export default function CreatePage() {
     let newCode: string | null
     const patches = parsePatches(full)
     if (patches.length > 0) {
-      newCode = applyPatches(currentVersion?.code ?? '', patches)
+      newCode = applyPatches(baseCode, patches)
       if (!newCode) {
         message.warning('Patch 套用失敗，正在要求完整重新生成…')
         try {
           const fallback = await start(
             settings.llm,
-            buildFirstTurnSystemPrompt(tool.dataSources, schema),
-            updatedMessages,
+            buildFirstTurnSystemPrompt(baseTool.dataSources, schema),
+            convo,
           )
           newCode = extractFullHtml(fallback)
         } catch {
@@ -255,10 +272,72 @@ export default function CreatePage() {
       return
     }
     const explanation = extractExplanation(full) || '已更新工具。'
-    const newConversation: Message[] = [...updatedMessages, { role: 'assistant', content: explanation }]
+    const newConversation: Message[] = [...convo, { role: 'assistant', content: explanation }]
     setMessages(newConversation)
-    commitVersion(newCode, newConversation)
+    commitVersion(newCode, newConversation, baseTool)
     setPreviewTab('tool')
+  }
+
+  function editTurn(userMsg: Message) {
+    const convo = [...messages, userMsg]
+    setMessages(convo)
+    setInput('')
+    editCore(convo, currentVersion?.code ?? '', tool)
+  }
+
+  // 重新生成最後一則（編輯回合會還原版本後重做）
+  function regenerate() {
+    if (streaming) return
+    const ui = lastUserIndex()
+    if (ui < 0) return
+    autoFixAttempts.current = 0
+    const convo = messages.slice(0, ui + 1)
+    setMessages(convo)
+    if (!hasVersions) {
+      brainstormCore(convo)
+      return
+    }
+    const r = revertedEditTool()
+    if (!r) return
+    editCore(convo, r.baseCode, r.tool)
+  }
+
+  // 把最後一則使用者訊息載回輸入框、移除該回合（含還原版本），讓使用者改寫後重送
+  function editLast() {
+    if (streaming) return
+    const ui = lastUserIndex()
+    if (ui < 0) return
+    setInput(messages[ui].content)
+    const prior = messages.slice(0, ui)
+    setMessages(prior)
+    setQuestions(null)
+    if (hasVersions) {
+      const r = revertedEditTool()
+      if (r) {
+        setTool(r.tool)
+        save(r.tool)
+      }
+    } else {
+      persistConversation(prior)
+    }
+  }
+
+  function deleteLast() {
+    if (streaming) return
+    const ui = lastUserIndex()
+    if (ui < 0) return
+    const prior = messages.slice(0, ui)
+    setMessages(prior)
+    setQuestions(null)
+    if (hasVersions) {
+      const r = revertedEditTool()
+      if (r) {
+        setTool(r.tool)
+        save(r.tool)
+      }
+    } else {
+      persistConversation(prior)
+    }
   }
 
   // 把錯誤訊息餵給 LLM 修正，產生新版本
@@ -365,6 +444,9 @@ export default function CreatePage() {
       onInputChange={setInput}
       onSend={handleSend}
       onAbort={abort}
+      onRegenerate={regenerate}
+      onEditLast={editLast}
+      onDeleteLast={deleteLast}
       placeholder={hasVersions ? '描述要修改的地方…' : '描述你想要的工具，我會先問幾個問題…'}
       belowMessages={
         !hasVersions && questions ? (

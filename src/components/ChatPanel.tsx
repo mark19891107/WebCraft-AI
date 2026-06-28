@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { Input, Button, Empty, Grid, Typography, theme } from 'antd'
-import { SendOutlined, StopOutlined } from '@ant-design/icons'
+import { Input, Button, Empty, Grid, Typography, theme, Space, Tooltip, Popconfirm } from 'antd'
+import { SendOutlined, StopOutlined, ReloadOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { Message } from '../types'
 import ChatMessage from './ChatMessage'
 
@@ -16,6 +16,9 @@ interface Props {
   onAbort: () => void
   placeholder?: string
   belowMessages?: React.ReactNode
+  onRegenerate?: () => void
+  onEditLast?: () => void
+  onDeleteLast?: () => void
 }
 
 export default function ChatPanel({
@@ -28,6 +31,9 @@ export default function ChatPanel({
   onAbort,
   placeholder = '描述需求或要修改的地方…',
   belowMessages,
+  onRegenerate,
+  onEditLast,
+  onDeleteLast,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const screens = useBreakpoint()
@@ -55,6 +61,27 @@ export default function ChatPanel({
       </div>
 
       <div style={{ padding: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
+        {!streaming && messages.some((m) => m.role === 'user') && (onRegenerate || onEditLast || onDeleteLast) && (
+          <Space style={{ marginBottom: 8 }}>
+            {onRegenerate && (
+              <Tooltip title="重新生成最後一則">
+                <Button size="small" icon={<ReloadOutlined />} onClick={onRegenerate}>
+                  重新生成
+                </Button>
+              </Tooltip>
+            )}
+            {onEditLast && (
+              <Tooltip title="把最後一則訊息載回輸入框修改">
+                <Button size="small" icon={<EditOutlined />} onClick={onEditLast} />
+              </Tooltip>
+            )}
+            {onDeleteLast && (
+              <Popconfirm title="刪除最後一則來回？" okText="刪除" cancelText="取消" onConfirm={onDeleteLast}>
+                <Button size="small" danger icon={<DeleteOutlined />} />
+              </Popconfirm>
+            )}
+          </Space>
+        )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <Input.TextArea
             value={input}
