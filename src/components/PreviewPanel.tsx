@@ -1,4 +1,5 @@
-import { Tabs } from 'antd'
+import { Tabs, Button, Popconfirm, Space } from 'antd'
+import { ClearOutlined } from '@ant-design/icons'
 import { ToolDefinition, ToolVersion } from '../types'
 import BridgeIframe from './BridgeIframe'
 import CodeViewer from './CodeViewer'
@@ -17,6 +18,7 @@ interface Props {
   onVersionSelect: (versionId: string) => void
   onVersionDelete: (versionId: string) => void
   onVersionLabel: (versionId: string, label: string) => void
+  onPruneVersions: () => void
 }
 
 export default function PreviewPanel({
@@ -30,6 +32,7 @@ export default function PreviewPanel({
   onVersionSelect,
   onVersionDelete,
   onVersionLabel,
+  onPruneVersions,
 }: Props) {
   const savedCode = currentVersion?.code ?? ''
   const codeForViewer = streaming ? liveCode ?? '' : savedCode
@@ -73,12 +76,27 @@ export default function PreviewPanel({
           label: `版本 (${tool.versions.length})`,
           style: { height: 'calc(100vh - 160px)', overflow: 'auto', padding: 12 },
           children: (
-            <VersionTree
-              tool={tool}
-              onSelect={onVersionSelect}
-              onDelete={onVersionDelete}
-              onLabel={onVersionLabel}
-            />
+            <Space direction="vertical" style={{ width: '100%' }}>
+              {tool.versions.length > 1 && (
+                <Popconfirm
+                  title="只保留目前版本、刪除其餘所有版本？"
+                  okText="精簡"
+                  okButtonProps={{ danger: true }}
+                  cancelText="取消"
+                  onConfirm={onPruneVersions}
+                >
+                  <Button size="small" icon={<ClearOutlined />}>
+                    精簡版本（只留目前）
+                  </Button>
+                </Popconfirm>
+              )}
+              <VersionTree
+                tool={tool}
+                onSelect={onVersionSelect}
+                onDelete={onVersionDelete}
+                onLabel={onVersionLabel}
+              />
+            </Space>
           ),
         },
       ]}

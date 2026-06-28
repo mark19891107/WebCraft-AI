@@ -332,6 +332,14 @@ export default function CreatePage() {
     }
   }
 
+  function handlePruneVersions() {
+    if (!currentVersion) return
+    const kept: ToolVersion = { ...currentVersion, parentVersionId: null }
+    const updated = { ...tool, versions: [kept], currentVersionId: kept.versionId, updatedAt: new Date().toISOString() }
+    setTool(updated)
+    save(updated)
+  }
+
   function handleVersionLabel(versionId: string, label: string) {
     const updated = {
       ...tool,
@@ -382,6 +390,7 @@ export default function CreatePage() {
       onVersionSelect={handleVersionSelect}
       onVersionDelete={handleVersionDelete}
       onVersionLabel={handleVersionLabel}
+      onPruneVersions={handlePruneVersions}
     />
   )
 

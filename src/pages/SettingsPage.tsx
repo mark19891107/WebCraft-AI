@@ -16,11 +16,16 @@ import {
 import { ApiOutlined, SaveOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { Progress, List } from 'antd'
 import AppHeader from '../components/AppHeader'
 import { useSettings } from '../hooks/useSettings'
 import { testConnection } from '../services/llm'
 import { connectMCP } from '../services/mcpClient'
+import { getStorageUsage, formatBytes } from '../services/storageUsage'
 import { Settings, MCPServer } from '../types'
+
+// localStorage 多數瀏覽器約 5MB
+const STORAGE_LIMIT = 5 * 1024 * 1024
 
 const { Content } = Layout
 
@@ -32,6 +37,7 @@ export default function SettingsPage() {
   const [mcpModalOpen, setMcpModalOpen] = useState(false)
   const [editingMcp, setEditingMcp] = useState<MCPServer | null>(null)
   const [connecting, setConnecting] = useState(false)
+  const [usage, setUsage] = useState(() => getStorageUsage())
 
   function handleSaveLLM(values: Settings['llm']) {
     update({ ...settings, llm: values })
@@ -197,6 +203,45 @@ export default function SettingsPage() {
             </Button>
           </Form>
         </Modal>
+
+        <Divider />
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 8,
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            儲存空間
+          </Typography.Title>
+          <Button size="small" onClick={() => setUsage(getStorageUsage())}>
+            重新整理
+          </Button>
+        </div>
+        <Progress
+          percent={Math.min(100, Math.round((usage.totalBytes / STORAGE_LIMIT) * 100))}
+          format={() => `${formatBytes(usage.totalBytes)} / ~5 MB`}
+          status={usage.totalBytes > STORAGE_LIMIT * 0.9 ? 'exception' : 'normal'}
+        />
+        <List
+          size="small"
+          dataSource={usage.items}
+          locale={{ emptyText: '無資料' }}
+          renderItem={(item) => (
+            <List.Item>
+              <Typography.Text>{item.label}</Typography.Text>
+              <Typography.Text type="secondary">{formatBytes(item.bytes)}</Typography.Text>
+            </List.Item>
+          )}
+        />
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          版本歷史會保存每個版本的完整程式碼，數量多時較佔空間，可在編輯工具時用「精簡版本」清理。
+        </Typography.Text>
       </Content>
     </Layout>
   )
