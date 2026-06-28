@@ -469,10 +469,18 @@ export default function CreatePage() {
         />
       ) : (
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          <div style={{ width: '40%', borderRight: `1px solid ${token.colorBorderSecondary}`, minHeight: 0 }}>
+          <div
+            style={{
+              flex: '0 0 400px',
+              width: 400,
+              borderRight: `1px solid ${token.colorBorderSecondary}`,
+              minHeight: 0,
+              minWidth: 0,
+            }}
+          >
             {chat}
           </div>
-          <div style={{ flex: 1, minHeight: 0 }}>{preview}</div>
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>{preview}</div>
         </div>
       )}
 
