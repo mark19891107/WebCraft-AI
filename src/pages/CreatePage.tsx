@@ -68,7 +68,7 @@ export default function CreatePage() {
   const navigate = useNavigate()
   const { getTool, save } = useTools()
   const { settings } = useSettings()
-  const { streaming, streamRaw, streamExplanation, streamCode, start, abort } = useLLMStream()
+  const { streaming, lastUsage, streamRaw, streamExplanation, streamCode, start, abort } = useLLMStream()
   const screens = useBreakpoint()
   const { token } = theme.useToken()
   const isMobile = screens.md === false
@@ -414,6 +414,13 @@ export default function CreatePage() {
             {tool.name} ✏️
           </Typography.Text>
           <Tag color={hasVersions ? 'blue' : 'gold'}>{hasVersions ? '編輯中' : '腦力激盪中'}</Tag>
+          {lastUsage?.total_tokens != null && (
+            <Tooltip
+              title={`輸入 ${lastUsage.prompt_tokens ?? '?'} + 輸出 ${lastUsage.completion_tokens ?? '?'} tokens`}
+            >
+              <Tag>上次 {lastUsage.total_tokens} tokens</Tag>
+            </Tooltip>
+          )}
         </Space>
         <Space>
           {!hasVersions && (

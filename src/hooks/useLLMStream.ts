@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useMemo } from 'react'
 import { Message, Settings } from '../types'
-import { streamLLM } from '../services/llm'
+import { streamLLM, LLMUsage } from '../services/llm'
 import { splitStream } from '../services/patch'
 
 export function useLLMStream() {
   const [streaming, setStreaming] = useState(false)
   const [rawText, setRawText] = useState('')
+  const [lastUsage, setLastUsage] = useState<LLMUsage | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const split = useMemo(() => splitStream(rawText), [rawText])
@@ -25,6 +26,7 @@ export function useLLMStream() {
           systemPrompt,
           messages,
           onChunk: (chunk) => setRawText((prev) => prev + chunk),
+          onUsage: (usage) => setLastUsage(usage),
           signal: abortRef.current.signal,
         })
         return full
@@ -42,6 +44,7 @@ export function useLLMStream() {
 
   return {
     streaming,
+    lastUsage,
     // 原始串流全文（供即時套用 patch 用）
     streamRaw: rawText,
     // 給人看的說明（對話框）

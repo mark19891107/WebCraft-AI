@@ -1,10 +1,17 @@
 import { Message, Settings } from '../types'
 
+export interface LLMUsage {
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+}
+
 export interface LLMStreamOptions {
   settings: Settings['llm']
   systemPrompt: string
   messages: Message[]
   onChunk: (chunk: string) => void
+  onUsage?: (usage: LLMUsage) => void
   signal?: AbortSignal
 }
 
@@ -18,7 +25,7 @@ function normalizeEndpoint(endpoint: string): string {
  * 重點：跨 network chunk 緩衝未完成的 SSE 行，避免 data 行被切在 chunk 邊界時掉字。
  */
 export async function streamLLM(options: LLMStreamOptions): Promise<string> {
-  const { settings, systemPrompt, messages, onChunk, signal } = options
+  const { settings, systemPrompt, messages, onChunk, onUsage, signal } = options
   const base = normalizeEndpoint(settings.endpoint)
 
   const response = await fetch(`${base}/chat/completions`, {
@@ -30,6 +37,8 @@ export async function streamLLM(options: LLMStreamOptions): Promise<string> {
     body: JSON.stringify({
       model: settings.model,
       stream: true,
+      // 要求最後一個 chunk 附帶 token 用量（多數 OpenAI-compatible 服務支援）
+      stream_options: { include_usage: true },
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
     }),
     signal,
@@ -66,6 +75,7 @@ export async function streamLLM(options: LLMStreamOptions): Promise<string> {
           fullText += chunk
           onChunk(chunk)
         }
+        if (json.usage && onUsage) onUsage(json.usage as LLMUsage)
       } catch {
         // 不完整或非 JSON 的 SSE 行，略過
       }
