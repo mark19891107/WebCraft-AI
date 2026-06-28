@@ -41,6 +41,21 @@ function availableNames(sources: DataSource[], type: string): string {
   return names.length ? names.join(', ') : '（無）'
 }
 
+// 生成的工具自己的持久化儲存（依工具 id 隔離）
+export const TOOL_STORE_PREFIX = 'webcraft_toolstore_'
+
+function loadToolStore(toolId: string): Record<string, unknown> {
+  try {
+    return JSON.parse(localStorage.getItem(TOOL_STORE_PREFIX + toolId) ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+function saveToolStore(toolId: string, data: Record<string, unknown>) {
+  localStorage.setItem(TOOL_STORE_PREFIX + toolId, JSON.stringify(data))
+}
+
 async function handle(event: MessageEvent, iframe: HTMLIFrameElement, tool: ToolDefinition) {
   if (event.source !== iframe.contentWindow) return
   const req = event.data as BridgeRequest
@@ -108,6 +123,33 @@ async function handle(event: MessageEvent, iframe: HTMLIFrameElement, tool: Tool
         const contentType = resp.headers.get('content-type') ?? ''
         const data = contentType.includes('application/json') ? await resp.json() : await resp.text()
         reply(iframe, { requestId, result: data, done: true })
+        break
+      }
+
+      case 'storage.get': {
+        const store = loadToolStore(tool.id)
+        reply(iframe, { requestId, result: store[req.key] ?? null, done: true })
+        break
+      }
+
+      case 'storage.set': {
+        const store = loadToolStore(tool.id)
+        store[req.key] = req.value
+        saveToolStore(tool.id, store)
+        reply(iframe, { requestId, result: null, done: true })
+        break
+      }
+
+      case 'storage.remove': {
+        const store = loadToolStore(tool.id)
+        delete store[req.key]
+        saveToolStore(tool.id, store)
+        reply(iframe, { requestId, result: null, done: true })
+        break
+      }
+
+      case 'storage.keys': {
+        reply(iframe, { requestId, result: Object.keys(loadToolStore(tool.id)), done: true })
         break
       }
 

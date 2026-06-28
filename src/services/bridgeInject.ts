@@ -65,6 +65,12 @@ export const BRIDGE_INJECT_SCRIPT = `
       fetch: function (name, options) {
         return call('api.fetch', { name: name, options: options });
       }
+    },
+    storage: {
+      get: function (key) { return call('storage.get', { key: key }); },
+      set: function (key, value) { return call('storage.set', { key: key, value: value }); },
+      remove: function (key) { return call('storage.remove', { key: key }); },
+      keys: function () { return call('storage.keys', {}); }
     }
   };
 })();

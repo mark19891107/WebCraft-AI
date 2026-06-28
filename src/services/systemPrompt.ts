@@ -15,7 +15,15 @@ const result = await window.bridge.mcp.call('my-server', 'get_data', { key: 'val
 
 // 代理外部 API（繞過 CORS）
 const data = await window.bridge.api.fetch('weather-api')
+
+// 保存工具自己的狀態（沙箱 iframe 無法用 localStorage，請改用這個）
+await window.bridge.storage.set('todos', [{ text: '買牛奶', done: false }])
+const todos = await window.bridge.storage.get('todos') // 沒有時回傳 null
+await window.bridge.storage.remove('todos')
+const keys = await window.bridge.storage.keys()
 \`\`\`
+
+注意：生成的工具執行在沙箱 iframe 中，**不能直接使用 \`localStorage\`/\`sessionStorage\`（會出錯）**；需要持久化時請一律使用 \`window.bridge.storage\`。
 `
 
 function listSources(dataSources: ToolDefinition['dataSources']): string {

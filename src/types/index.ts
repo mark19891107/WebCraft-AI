@@ -61,6 +61,10 @@ export type BridgeRequest =
   | { type: 'mcp.call'; requestId: string; serverName: string; tool: string; params: Record<string, unknown> }
   | { type: 'mcp.listTools'; requestId: string; serverName: string }
   | { type: 'api.fetch'; requestId: string; name: string; options?: RequestInit }
+  | { type: 'storage.get'; requestId: string; key: string }
+  | { type: 'storage.set'; requestId: string; key: string; value: unknown }
+  | { type: 'storage.remove'; requestId: string; key: string }
+  | { type: 'storage.keys'; requestId: string }
 
 export type BridgeResponse =
   | { requestId: string; chunk: string; done: false }
