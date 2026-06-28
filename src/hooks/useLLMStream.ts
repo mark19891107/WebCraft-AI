@@ -42,6 +42,8 @@ export function useLLMStream() {
 
   return {
     streaming,
+    // 原始串流全文（供即時套用 patch 用）
+    streamRaw: rawText,
     // 給人看的說明（對話框）
     streamExplanation: split.explanation,
     // 程式碼/patch（程式碼頁籤即時呈現）

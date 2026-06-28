@@ -316,6 +316,8 @@ v1 (根)
 - 🐛 **修正深色模式文字看不見**：對話泡泡的 markdown 用原生元素渲染、繼承到預設黑字，在深色泡泡上看不清。改用 antd theme token（`colorText`/`colorFillSecondary`/`colorBorderSecondary`）上色，markdown 程式碼/表格改用灰階半透明（深淺皆清楚）。
 - ✅ **Dark / Light 切換**：新增 `ThemeProvider`（持久化於 localStorage、同步 `<body>` 背景），Header 加入主題切換開關；AppHeader/ChatMessage/ChatPanel/CreatePage 等寫死顏色改用 token。
 - ✅ **腦力激盪互動式表單**：LLM 以結構化 ```json 輸出問題，前端 `parseBrainstorm` + `QuestionForm` 渲染成單選/複選/文字（含「其他」自行輸入）；多題一次答完才送回 LLM 開下一輪。新增 4 項解析測試（共 17 通過）。
+- ✅ **ToolPage 錯誤提示**：使用工具頁捕捉執行期錯誤，於頂部顯示橫幅 +「編輯修復」按鈕（導向編輯頁）。
+- ✅ **patch 回合即時程式碼**：第二輪起的修改，串流時把已完成的 patch 即時套到目前程式碼（`livePatchedCode`），「程式碼」頁籤即時呈現修改結果，不再像卡住。
 
 ---
 

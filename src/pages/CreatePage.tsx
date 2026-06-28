@@ -35,7 +35,7 @@ import QuestionForm from '../components/QuestionForm'
 import { useTools } from '../hooks/useTools'
 import { useSettings } from '../hooks/useSettings'
 import { useLLMStream } from '../hooks/useLLMStream'
-import { parsePatches, applyPatches, extractExplanation, extractFullHtml } from '../services/patch'
+import { parsePatches, applyPatches, extractExplanation, extractFullHtml, livePatchedCode } from '../services/patch'
 import {
   buildFirstTurnSystemPrompt,
   buildPatchSystemPrompt,
@@ -68,7 +68,7 @@ export default function CreatePage() {
   const navigate = useNavigate()
   const { getTool, save } = useTools()
   const { settings } = useSettings()
-  const { streaming, streamExplanation, streamCode, start, abort } = useLLMStream()
+  const { streaming, streamRaw, streamExplanation, streamCode, start, abort } = useLLMStream()
   const screens = useBreakpoint()
   const { token } = theme.useToken()
   const isMobile = screens.md === false
@@ -82,6 +82,7 @@ export default function CreatePage() {
   const [previewTab, setPreviewTab] = useState('tool')
   const [mobileTab, setMobileTab] = useState('chat')
   const [generatingCode, setGeneratingCode] = useState(false)
+  const [genKind, setGenKind] = useState<'full' | 'patch'>('full')
   const [ready, setReady] = useState(false)
   const [toolError, setToolError] = useState<string | null>(null)
   const [questions, setQuestions] = useState<BrainstormQuestion[] | null>(null)
@@ -173,6 +174,7 @@ export default function CreatePage() {
     const genMessages = [...messages, triggerMsg]
     setMessages(genMessages)
     setToolError(null)
+    setGenKind('full')
     setGeneratingCode(true)
     setPreviewTab('code')
     setMobileTab('preview')
@@ -206,6 +208,7 @@ export default function CreatePage() {
     setInput('')
     setToolError(null)
     const schema = await summarizeBoundData(tool.dataSources)
+    setGenKind('patch')
     setGeneratingCode(true)
     setPreviewTab('code')
     setMobileTab('preview')
@@ -363,13 +366,17 @@ export default function CreatePage() {
     />
   )
 
+  // patch 回合：把已完成的 patch 即時套到目前程式碼，讓使用者看到程式碼在變（而非空白卡住）
+  const liveCode =
+    genKind === 'patch' ? livePatchedCode(currentVersion?.code ?? '', streamRaw) : streamCode
+
   const preview = (
     <PreviewPanel
       tool={tool}
       currentVersion={currentVersion}
       activeKey={previewTab}
       onChangeKey={setPreviewTab}
-      liveCode={streamCode}
+      liveCode={liveCode}
       streaming={generatingCode}
       onToolError={handleToolError}
       onVersionSelect={handleVersionSelect}

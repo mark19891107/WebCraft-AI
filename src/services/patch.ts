@@ -113,3 +113,23 @@ export function applyPatches(code: string, patches: Patch[]): string | null {
   }
   return result
 }
+
+/**
+ * 串流中即時呈現用：把目前已完成的 patch 套到 base 上，回傳套用後的完整程式碼。
+ * - 說明階段（尚無完整 patch）→ 回傳 base（避免畫面空白看似卡住）。
+ * - 找不到對應片段的 patch 會被略過（容忍串流中尚未對齊的情況）。
+ * - 若回應改用完整 ``` 程式碼區塊（fallback 重寫），則回傳該程式碼。
+ */
+export function livePatchedCode(base: string, rawText: string): string {
+  const patches = parsePatches(rawText)
+  if (patches.length > 0) {
+    let result = base
+    for (const patch of patches) {
+      if (result.includes(patch.find)) result = result.replace(patch.find, patch.replace)
+    }
+    return result
+  }
+  const full = extractFullHtml(rawText)
+  if (full) return full
+  return base
+}
