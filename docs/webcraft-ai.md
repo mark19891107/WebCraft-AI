@@ -311,7 +311,8 @@ v1 (根)
 - ✅ **對話 markdown 渲染**：新增 `Markdown` 元件（react-markdown + remark-gfm），assistant 回覆以 markdown 呈現（標題/清單/行內碼/表格/連結），使用者訊息維持純文字。
 - ✅ **多行輸入**：輸入框預設 2 行、最多 8 行自動增高；桌機 Enter 送出、Shift+Enter 換行（含提示），行動裝置 Enter 換行、以送出鈕送出。
 - ✅ **工具自動修復**：iframe 注入腳本回報執行期錯誤（`error`/`unhandledrejection`）；CreatePage 顯示錯誤橫幅 + 「自動修復」按鈕（將錯誤餵給 LLM 修正並建版本）；可選自動修復開關（預設關，連續上限 2 次）。
-- ✅ **Bundle 拆分**：各頁改用 `React.lazy` 路由層級 code-splitting（首頁不再載入 markdown/highlight）；vendor 依 react / antd / icons / markdown / highlight 分塊利於快取，消除 chunk 過大警告。
+- ✅ **Bundle 拆分**：各頁改用 `React.lazy` 路由層級 code-splitting（首頁不再載入 markdown/highlight），交由 Vite 預設分塊產生多個合理小塊；放寬 `chunkSizeWarningLimit` 消除警告。
+- 🐛 **修正**：先前自訂 `manualChunks` 把 `react / antd / icons` 拆到不同 chunk，破壞跨 chunk 初始化順序，導致一開網頁就 `Cannot read properties of undefined (reading 'primary')`。改回 Vite 預設分塊修正。
 
 ---
 
