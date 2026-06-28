@@ -15,6 +15,7 @@ interface Props {
   onSend: () => void
   onAbort: () => void
   placeholder?: string
+  belowMessages?: React.ReactNode
 }
 
 export default function ChatPanel({
@@ -26,6 +27,7 @@ export default function ChatPanel({
   onSend,
   onAbort,
   placeholder = '描述需求或要修改的地方…',
+  belowMessages,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const screens = useBreakpoint()
@@ -34,7 +36,7 @@ export default function ChatPanel({
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, streamText])
+  }, [messages, streamText, belowMessages])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -49,6 +51,7 @@ export default function ChatPanel({
             {streaming && <ChatMessage streaming streamText={streamText} />}
           </>
         )}
+        {!streaming && belowMessages}
       </div>
 
       <div style={{ padding: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>

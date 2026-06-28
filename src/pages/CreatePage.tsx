@@ -31,6 +31,7 @@ import AppHeader from '../components/AppHeader'
 import ChatPanel from '../components/ChatPanel'
 import PreviewPanel from '../components/PreviewPanel'
 import DataSourceBinder from '../components/DataSourceBinder'
+import QuestionForm from '../components/QuestionForm'
 import { useTools } from '../hooks/useTools'
 import { useSettings } from '../hooks/useSettings'
 import { useLLMStream } from '../hooks/useLLMStream'
@@ -42,6 +43,7 @@ import {
   READY_MARKER,
 } from '../services/systemPrompt'
 import { summarizeBoundData } from '../services/dataSource'
+import { parseBrainstorm, BrainstormQuestion } from '../services/brainstorm'
 import { ToolDefinition, ToolVersion, Message, DataSource } from '../types'
 
 const { useBreakpoint } = Grid
@@ -82,6 +84,7 @@ export default function CreatePage() {
   const [generatingCode, setGeneratingCode] = useState(false)
   const [ready, setReady] = useState(false)
   const [toolError, setToolError] = useState<string | null>(null)
+  const [questions, setQuestions] = useState<BrainstormQuestion[] | null>(null)
   const [autoFix, setAutoFix] = useState(false)
   const autoFixAttempts = useRef(0)
   const MAX_AUTO_FIX = 2
@@ -130,11 +133,12 @@ export default function CreatePage() {
     save(updated)
   }
 
-  // 腦力激盪：只聊天問問題、偵測 ready 標記
+  // 腦力激盪：問問題（結構化表單）、偵測 ready 標記
   async function runBrainstorm(userMsg: Message) {
     const updatedMessages = [...messages, userMsg]
     setMessages(updatedMessages)
     setInput('')
+    setQuestions(null)
     let full: string
     try {
       full = await start(settings.llm, buildBrainstormSystemPrompt(tool.dataSources), updatedMessages)
@@ -144,10 +148,13 @@ export default function CreatePage() {
       return
     }
     const isReady = full.includes(READY_MARKER)
-    const content = extractExplanation(full).split(READY_MARKER).join('').trim() || '（請繼續補充）'
+    const form = isReady ? null : parseBrainstorm(full)
+    const content =
+      extractExplanation(full).split(READY_MARKER).join('').trim() || form?.intro || '（請回答以下問題）'
     const newConversation: Message[] = [...updatedMessages, { role: 'assistant', content }]
     setMessages(newConversation)
     persistConversation(newConversation)
+    setQuestions(form?.questions ?? null)
     if (isReady) setReady(true)
   }
 
@@ -160,6 +167,7 @@ export default function CreatePage() {
       return
     }
     autoFixAttempts.current = 0
+    setQuestions(null)
     const schema = await summarizeBoundData(tool.dataSources)
     const triggerMsg: Message = { role: 'user', content: '請根據以上討論，直接生成這個工具。' }
     const genMessages = [...messages, triggerMsg]
@@ -285,6 +293,12 @@ export default function CreatePage() {
     else runBrainstorm(userMsg)
   }
 
+  // 腦力激盪問題表單：答完一次送回 LLM 開下一輪
+  function handleAnswers(compiled: string) {
+    if (streaming) return
+    runBrainstorm({ role: 'user', content: compiled })
+  }
+
   function handleVersionSelect(versionId: string) {
     const version = tool.versions.find((v) => v.versionId === versionId)
     if (!version) return
@@ -341,6 +355,11 @@ export default function CreatePage() {
       onSend={handleSend}
       onAbort={abort}
       placeholder={hasVersions ? '描述要修改的地方…' : '描述你想要的工具，我會先問幾個問題…'}
+      belowMessages={
+        !hasVersions && questions ? (
+          <QuestionForm questions={questions} disabled={streaming} onSubmit={handleAnswers} />
+        ) : null
+      }
     />
   )
 

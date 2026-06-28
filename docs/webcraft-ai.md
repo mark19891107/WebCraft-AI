@@ -171,7 +171,7 @@ v1 (根)
 - 預覽 iframe 於串流**結束後**才刷新（半成品 HTML 不渲染）；生成時自動切到「程式碼」頁籤，結束切回「預覽」。
 - 分流由 `splitStream()` 以「目前累積字串」解析，界定 ```` ``` ```` 圍欄與 `<patch>` 區塊，並回報是否仍在未關閉的程式碼區。
 
-**階段 1 — 腦力激盪（新工具預設先進此階段）：** 使用獨立 system prompt，LLM 只用繁中問 1～3 個關鍵澄清問題、**不輸出程式碼**；蒐集足夠資訊時在訊息結尾放 `[READY]` 標記提示可生成（顯示時剝除）。對話即時持久化（此時尚無版本）。
+**階段 1 — 腦力激盪（新工具預設先進此階段）：** 使用獨立 system prompt，LLM 只用繁中問 1～3 個關鍵澄清問題、**不輸出程式碼**。問題以結構化 ```json 區塊輸出（`single`/`multi`/`text`），前端 `parseBrainstorm` 解析成**可點選表單**（`QuestionForm`，自動附「其他（自行輸入）」選項）；使用者把多題一次答完後編譯成一則訊息送回 LLM 開下一輪。蒐集足夠資訊時改放 `[READY]` 標記提示可生成（顯示時剝除）。對話即時持久化（此時尚無版本）。
 
 **階段 2 — 首次生成：** 由使用者按「生成工具」觸發（隨時可按；偵測到 `[READY]` 時按鈕高亮主動提示，兩者並用）。組裝 system prompt（bridge API 文件 + 資料來源 schema 摘要 + 輸出格式）+ 帶入腦力激盪對話 → streaming 輸出完整 HTML → 注入 bridge、寫入 iframe `srcdoc` → 建立根版本。
 
@@ -315,6 +315,7 @@ v1 (根)
 - 🐛 **修正**：先前自訂 `manualChunks` 把 `react / antd / icons` 拆到不同 chunk，破壞跨 chunk 初始化順序，導致一開網頁就 `Cannot read properties of undefined (reading 'primary')`。改回 Vite 預設分塊修正。
 - 🐛 **修正深色模式文字看不見**：對話泡泡的 markdown 用原生元素渲染、繼承到預設黑字，在深色泡泡上看不清。改用 antd theme token（`colorText`/`colorFillSecondary`/`colorBorderSecondary`）上色，markdown 程式碼/表格改用灰階半透明（深淺皆清楚）。
 - ✅ **Dark / Light 切換**：新增 `ThemeProvider`（持久化於 localStorage、同步 `<body>` 背景），Header 加入主題切換開關；AppHeader/ChatMessage/ChatPanel/CreatePage 等寫死顏色改用 token。
+- ✅ **腦力激盪互動式表單**：LLM 以結構化 ```json 輸出問題，前端 `parseBrainstorm` + `QuestionForm` 渲染成單選/複選/文字（含「其他」自行輸入）；多題一次答完才送回 LLM 開下一輪。新增 4 項解析測試（共 17 通過）。
 
 ---
 
