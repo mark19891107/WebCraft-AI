@@ -7,6 +7,7 @@ const CreatePage = lazy(() => import('./pages/CreatePage'))
 const ToolPage = lazy(() => import('./pages/ToolPage'))
 const DataPage = lazy(() => import('./pages/DataPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const ImportPage = lazy(() => import('./pages/ImportPage'))
 
 function PageFallback() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/tool/:id" element={<ToolPage />} />
           <Route path="/data" element={<DataPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/import" element={<ImportPage />} />
         </Routes>
       </Suspense>
     </HashRouter>

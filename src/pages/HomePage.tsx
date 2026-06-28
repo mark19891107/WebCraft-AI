@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import AppHeader from '../components/AppHeader'
 import ToolCard from '../components/ToolCard'
 import { useTools } from '../hooks/useTools'
-import { exportTool, downloadToolJson, importToolJson } from '../services/exportImport'
+import { exportTool, downloadToolJson, importToolJson, buildShareUrl } from '../services/exportImport'
 import { TEMPLATES, ToolTemplate } from '../services/templates'
 import { ToolDefinition } from '../types'
 
@@ -56,6 +56,20 @@ export default function HomePage() {
       message.error('匯入失敗，請確認檔案格式正確')
     }
     return false
+  }
+
+  async function handleShare(tool: ToolDefinition) {
+    const url = buildShareUrl(tool)
+    if (url.length > 8000) {
+      message.warning('此工具太大，分享連結過長，建議改用「匯出」分享檔案')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      message.success('分享連結已複製到剪貼簿')
+    } catch {
+      Modal.info({ title: '分享連結', content: url })
+    }
   }
 
   function handleDuplicate(tool: ToolDefinition) {
@@ -127,7 +141,13 @@ export default function HomePage() {
           <Row gutter={[16, 16]}>
             {filtered.map((tool) => (
               <Col key={tool.id} xs={24} sm={12} md={8} lg={6}>
-                <ToolCard tool={tool} onDelete={remove} onExport={handleExport} onDuplicate={handleDuplicate} />
+                <ToolCard
+                  tool={tool}
+                  onDelete={remove}
+                  onExport={handleExport}
+                  onDuplicate={handleDuplicate}
+                  onShare={handleShare}
+                />
               </Col>
             ))}
           </Row>

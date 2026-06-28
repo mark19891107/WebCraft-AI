@@ -56,6 +56,26 @@ export function downloadToolJson(exported: ExportedTool): void {
   URL.revokeObjectURL(url)
 }
 
+// 分享連結：把工具（精簡為目前版本）編碼成 URL 可帶的字串
+export function buildShareData(tool: ToolDefinition): string {
+  const v = tool.versions.find((x) => x.versionId === tool.currentVersionId)
+  const slim: ToolDefinition = {
+    ...tool,
+    versions: v ? [{ ...v, parentVersionId: null, conversation: [] }] : [],
+    conversation: [],
+  }
+  return encodeURIComponent(toBase64(JSON.stringify(slim)))
+}
+
+export function buildShareUrl(tool: ToolDefinition): string {
+  const { origin, pathname } = window.location
+  return `${origin}${pathname}#/import?d=${buildShareData(tool)}`
+}
+
+export function decodeShareData(data: string): ToolDefinition {
+  return JSON.parse(fromBase64(decodeURIComponent(data))) as ToolDefinition
+}
+
 export async function importToolJson(file: File): Promise<ToolDefinition> {
   const text = await file.text()
   const data = JSON.parse(text) as ExportedTool

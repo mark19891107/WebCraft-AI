@@ -6,6 +6,7 @@ import {
   DeleteOutlined,
   PlayCircleOutlined,
   CopyOutlined,
+  ShareAltOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { ToolDefinition } from '../types'
@@ -16,15 +17,17 @@ interface Props {
   onDelete: (id: string) => void
   onExport?: (tool: ToolDefinition) => void
   onDuplicate?: (tool: ToolDefinition) => void
+  onShare?: (tool: ToolDefinition) => void
 }
 
-export default function ToolCard({ tool, onDelete, onExport, onDuplicate }: Props) {
+export default function ToolCard({ tool, onDelete, onExport, onDuplicate, onShare }: Props) {
   const navigate = useNavigate()
 
   const menuItems = [
     { key: 'open', label: '開啟', icon: <PlayCircleOutlined /> },
     { key: 'edit', label: '編輯', icon: <EditOutlined /> },
     ...(onDuplicate ? [{ key: 'duplicate', label: '複製', icon: <CopyOutlined /> }] : []),
+    ...(onShare ? [{ key: 'share', label: '分享連結', icon: <ShareAltOutlined /> }] : []),
     ...(onExport ? [{ key: 'export', label: '匯出', icon: <ExportOutlined /> }] : []),
   ]
 
@@ -33,6 +36,7 @@ export default function ToolCard({ tool, onDelete, onExport, onDuplicate }: Prop
     if (key === 'open') navigate(`/tool/${tool.id}`)
     if (key === 'edit') navigate(`/create/${tool.id}`)
     if (key === 'duplicate') onDuplicate?.(tool)
+    if (key === 'share') onShare?.(tool)
     if (key === 'export') onExport?.(tool)
   }
 
