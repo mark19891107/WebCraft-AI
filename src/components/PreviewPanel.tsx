@@ -3,6 +3,7 @@ import { ToolDefinition, ToolVersion } from '../types'
 import BridgeIframe from './BridgeIframe'
 import CodeViewer from './CodeViewer'
 import VersionTree from './VersionTree'
+import DiffViewer from './DiffViewer'
 
 interface Props {
   tool: ToolDefinition
@@ -32,6 +33,9 @@ export default function PreviewPanel({
 }: Props) {
   const savedCode = currentVersion?.code ?? ''
   const codeForViewer = streaming ? liveCode ?? '' : savedCode
+  const parentVersion = currentVersion?.parentVersionId
+    ? tool.versions.find((v) => v.versionId === currentVersion.parentVersionId)
+    : undefined
 
   return (
     <Tabs
@@ -51,6 +55,18 @@ export default function PreviewPanel({
           label: streaming ? '程式碼 ✍️' : '程式碼',
           style: { height: 'calc(100vh - 160px)' },
           children: <CodeViewer code={codeForViewer} streaming={streaming} />,
+        },
+        {
+          key: 'diff',
+          label: '差異',
+          style: { height: 'calc(100vh - 160px)' },
+          children: (
+            <DiffViewer
+              oldCode={parentVersion?.code ?? ''}
+              newCode={savedCode}
+              isRoot={!currentVersion?.parentVersionId}
+            />
+          ),
         },
         {
           key: 'versions',
