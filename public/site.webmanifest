@@ -1,0 +1,12 @@
+{
+  "name": "WebCraft AI",
+  "short_name": "WebCraft AI",
+  "icons": [
+    { "src": "./favicon.svg", "type": "image/svg+xml", "sizes": "any" },
+    { "src": "./icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "./icon-512.png", "type": "image/png", "sizes": "512x512" }
+  ],
+  "theme_color": "#0958d9",
+  "background_color": "#141414",
+  "display": "standalone"
+}
