@@ -73,8 +73,9 @@ async function handle(event: MessageEvent, iframe: HTMLIFrameElement, tool: Tool
         }
         const text = await streamLLM({
           settings: settings.llm,
-          systemPrompt: 'You are a helpful assistant embedded in a web tool.',
+          systemPrompt: req.system ?? 'You are a helpful assistant embedded in a web tool.',
           messages: req.messages,
+          json: req.json,
           onChunk: (chunk) => reply(iframe, { requestId, chunk, done: false }),
         })
         reply(iframe, { requestId, result: text, done: true })

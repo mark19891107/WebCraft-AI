@@ -56,7 +56,7 @@ export interface MCPTool {
 
 // iframe 與主頁面之間的 postMessage 通訊協定
 export type BridgeRequest =
-  | { type: 'llm.chat'; requestId: string; messages: Message[]; stream?: boolean }
+  | { type: 'llm.chat'; requestId: string; messages: Message[]; stream?: boolean; system?: string; json?: boolean }
   | { type: 'data.read'; requestId: string; name: string; rows?: number; offset?: number }
   | { type: 'mcp.call'; requestId: string; serverName: string; tool: string; params: Record<string, unknown> }
   | { type: 'mcp.listTools'; requestId: string; serverName: string }

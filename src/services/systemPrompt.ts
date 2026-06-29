@@ -4,8 +4,12 @@ const BRIDGE_API_DOCS = `
 你生成的 HTML 工具可以使用 \`window.bridge\`（若主頁面有提供對應資料來源/設定）：
 
 \`\`\`javascript
-// 呼叫 LLM（回傳字串）
-const reply = await window.bridge.llm.chat([{ role: 'user', content: '摘要：...' }])
+// 呼叫 LLM（回傳字串）；可選 system 提示、JSON 模式、串流回呼
+const reply = await window.bridge.llm.chat(
+  [{ role: 'user', content: '摘要：...' }],
+  { system: '你是摘要助手', json: false, onChunk: (t) => { /* 逐字更新畫面 */ } }
+)
+// JSON 模式：const obj = JSON.parse(await window.bridge.llm.chat(msgs, { json: true }))
 
 // 讀取已綁定的資料檔（CSV 會解析成物件陣列，JSON 回傳解析後的值）
 const rows = await window.bridge.data.read('sales.csv', { rows: 100, offset: 0 })

@@ -19,7 +19,7 @@ export const BRIDGE_INJECT_SCRIPT = `
   });
 
   var _reqId = 0;
-  function call(type, payload) {
+  function call(type, payload, onChunk) {
     return new Promise(function (resolve, reject) {
       var requestId = 'br_' + (++_reqId);
       var chunks = [];
@@ -34,6 +34,7 @@ export const BRIDGE_INJECT_SCRIPT = `
           resolve(msg.result !== undefined ? msg.result : chunks.join(''));
         } else if (msg.chunk !== undefined) {
           chunks.push(msg.chunk);
+          if (onChunk) { try { onChunk(msg.chunk); } catch (e) {} }
         }
       }
       window.addEventListener('message', handler);
@@ -44,7 +45,8 @@ export const BRIDGE_INJECT_SCRIPT = `
   window.bridge = {
     llm: {
       chat: function (messages, options) {
-        return call('llm.chat', { messages: messages, stream: (options && options.stream) !== false });
+        options = options || {};
+        return call('llm.chat', { messages: messages, system: options.system, json: options.json }, options.onChunk);
       }
     },
     data: {
