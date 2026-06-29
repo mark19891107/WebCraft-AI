@@ -86,6 +86,7 @@ export default function CreatePage() {
   const [genKind, setGenKind] = useState<'full' | 'patch'>('full')
   const [ready, setReady] = useState(false)
   const [toolError, setToolError] = useState<string | null>(null)
+  const [attachedImages, setAttachedImages] = useState<string[]>([])
   const [questions, setQuestions] = useState<BrainstormQuestion[] | null>(null)
   const [autoFix, setAutoFix] = useState(false)
   const autoFixAttempts = useRef(0)
@@ -170,11 +171,11 @@ export default function CreatePage() {
   }
 
   // 腦力激盪核心：對給定對話產生回應（問題表單 / ready）
-  async function brainstormCore(convo: Message[]) {
+  async function brainstormCore(convo: Message[], images?: string[]) {
     setQuestions(null)
     let full: string
     try {
-      full = await start(settings.llm, buildBrainstormSystemPrompt(tool.dataSources), convo)
+      full = await start(settings.llm, buildBrainstormSystemPrompt(tool.dataSources), convo, images)
     } catch (err) {
       if (String(err).includes('AbortError')) return
       message.error(`LLM 請求失敗：${err}`)
@@ -193,9 +194,11 @@ export default function CreatePage() {
 
   function runBrainstorm(userMsg: Message) {
     const convo = [...messages, userMsg]
+    const imgs = attachedImages
     setMessages(convo)
     setInput('')
-    brainstormCore(convo)
+    setAttachedImages([])
+    brainstormCore(convo, imgs)
   }
 
   // 首輪生成：依目前對話生成完整 HTML
@@ -211,7 +214,9 @@ export default function CreatePage() {
     const schema = await summarizeBoundData(tool.dataSources)
     const triggerMsg: Message = { role: 'user', content: '請根據以上討論，直接生成這個工具。' }
     const genMessages = [...messages, triggerMsg]
+    const imgs = attachedImages
     setMessages(genMessages)
+    setAttachedImages([])
     setToolError(null)
     setGenKind('full')
     setGeneratingCode(true)
@@ -219,7 +224,7 @@ export default function CreatePage() {
     setMobileTab('preview')
     let full: string
     try {
-      full = await start(settings.llm, buildFirstTurnSystemPrompt(tool.dataSources, schema), genMessages)
+      full = await start(settings.llm, buildFirstTurnSystemPrompt(tool.dataSources, schema), genMessages, imgs)
     } catch (err) {
       setGeneratingCode(false)
       if (String(err).includes('AbortError')) return
@@ -242,7 +247,7 @@ export default function CreatePage() {
   }
 
   // 編輯核心：對 baseCode 套用 patch，產生新版本（掛在 baseTool 之下）
-  async function editCore(convo: Message[], baseCode: string, baseTool: ToolDefinition) {
+  async function editCore(convo: Message[], baseCode: string, baseTool: ToolDefinition, images?: string[]) {
     setToolError(null)
     const schema = await summarizeBoundData(baseTool.dataSources)
     setGenKind('patch')
@@ -251,7 +256,7 @@ export default function CreatePage() {
     setMobileTab('preview')
     let full: string
     try {
-      full = await start(settings.llm, buildPatchSystemPrompt(baseCode, baseTool.dataSources, schema), convo)
+      full = await start(settings.llm, buildPatchSystemPrompt(baseCode, baseTool.dataSources, schema), convo, images)
     } catch (err) {
       setGeneratingCode(false)
       if (String(err).includes('AbortError')) return
@@ -296,9 +301,11 @@ export default function CreatePage() {
 
   function editTurn(userMsg: Message) {
     const convo = [...messages, userMsg]
+    const imgs = attachedImages
     setMessages(convo)
     setInput('')
-    editCore(convo, currentVersion?.code ?? '', tool)
+    setAttachedImages([])
+    editCore(convo, currentVersion?.code ?? '', tool, imgs)
   }
 
   // 重新生成最後一則（編輯回合會還原版本後重做）
@@ -463,6 +470,9 @@ export default function CreatePage() {
       onRegenerate={regenerate}
       onEditLast={editLast}
       onDeleteLast={deleteLast}
+      images={attachedImages}
+      onAddImage={(url) => setAttachedImages((prev) => [...prev, url])}
+      onRemoveImage={(i) => setAttachedImages((prev) => prev.filter((_, j) => j !== i))}
       placeholder={hasVersions ? '描述要修改的地方…' : '描述你想要的工具，我會先問幾個問題…'}
       belowMessages={
         !hasVersions && questions ? (

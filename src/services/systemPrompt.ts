@@ -95,7 +95,8 @@ ${schemaBlock(schemaSummary)}
 - 使用現代 CSS（flexbox/grid）、響應式版面、適合行動裝置
 - 妥善處理錯誤，顯示友善訊息
 - 非必要不要依賴外部 CDN
-- JS 一律使用 vanilla（無需建置步驟）`
+- JS 一律使用 vanilla（無需建置步驟）
+- 若使用者附上參考圖，請盡量比照其版面配置與視覺風格`
 }
 
 export function buildPatchSystemPrompt(

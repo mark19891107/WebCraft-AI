@@ -16,6 +16,7 @@ export function useLLMStream() {
       settings: Settings['llm'],
       systemPrompt: string,
       messages: Message[],
+      images?: string[],
     ): Promise<string> => {
       abortRef.current = new AbortController()
       setStreaming(true)
@@ -25,6 +26,7 @@ export function useLLMStream() {
           settings,
           systemPrompt,
           messages,
+          images,
           onChunk: (chunk) => setRawText((prev) => prev + chunk),
           onUsage: (usage) => setLastUsage(usage),
           signal: abortRef.current.signal,

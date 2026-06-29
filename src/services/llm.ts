@@ -13,7 +13,27 @@ export interface LLMStreamOptions {
   onChunk: (chunk: string) => void
   onUsage?: (usage: LLMUsage) => void
   json?: boolean
+  // 多模態：附加到最後一則 user 訊息的影像（data URL）
+  images?: string[]
   signal?: AbortSignal
+}
+
+// 將 system + 對話組成 API messages；有影像時附到最後一則 user 訊息（OpenAI vision 格式）
+function buildApiMessages(systemPrompt: string, messages: Message[], images?: string[]): unknown[] {
+  const arr: { role: string; content: unknown }[] = [
+    { role: 'system', content: systemPrompt },
+    ...messages.map((m) => ({ role: m.role, content: m.content as unknown })),
+  ]
+  if (images && images.length) {
+    const last = arr[arr.length - 1]
+    if (last && last.role === 'user') {
+      last.content = [
+        { type: 'text', text: typeof last.content === 'string' ? last.content : '' },
+        ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
+      ]
+    }
+  }
+  return arr
 }
 
 // 去掉 endpoint 結尾斜線，避免出現 // 路徑
@@ -26,7 +46,7 @@ function normalizeEndpoint(endpoint: string): string {
  * 重點：跨 network chunk 緩衝未完成的 SSE 行，避免 data 行被切在 chunk 邊界時掉字。
  */
 export async function streamLLM(options: LLMStreamOptions): Promise<string> {
-  const { settings, systemPrompt, messages, onChunk, onUsage, json, signal } = options
+  const { settings, systemPrompt, messages, onChunk, onUsage, json, images, signal } = options
   const base = normalizeEndpoint(settings.endpoint)
 
   const response = await fetch(`${base}/chat/completions`, {
@@ -41,7 +61,7 @@ export async function streamLLM(options: LLMStreamOptions): Promise<string> {
       // 要求最後一個 chunk 附帶 token 用量（多數 OpenAI-compatible 服務支援）
       stream_options: { include_usage: true },
       ...(json ? { response_format: { type: 'json_object' } } : {}),
-      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      messages: buildApiMessages(systemPrompt, messages, images),
     }),
     signal,
   })

@@ -1,10 +1,27 @@
 import { useEffect, useRef } from 'react'
-import { Input, Button, Empty, Grid, Typography, theme, Space, Tooltip, Popconfirm } from 'antd'
-import { SendOutlined, StopOutlined, ReloadOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Input, Button, Empty, Grid, Typography, theme, Space, Tooltip, Popconfirm, Upload, message } from 'antd'
+import {
+  SendOutlined,
+  StopOutlined,
+  ReloadOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  PictureOutlined,
+  CloseCircleFilled,
+} from '@ant-design/icons'
 import { Message } from '../types'
 import ChatMessage from './ChatMessage'
 
 const { useBreakpoint } = Grid
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
 interface Props {
   messages: Message[]
@@ -19,6 +36,9 @@ interface Props {
   onRegenerate?: () => void
   onEditLast?: () => void
   onDeleteLast?: () => void
+  images?: string[]
+  onAddImage?: (dataUrl: string) => void
+  onRemoveImage?: (index: number) => void
 }
 
 export default function ChatPanel({
@@ -34,7 +54,22 @@ export default function ChatPanel({
   onRegenerate,
   onEditLast,
   onDeleteLast,
+  images = [],
+  onAddImage,
+  onRemoveImage,
 }: Props) {
+  async function handlePickImage(file: File) {
+    if (file.size > 5 * 1024 * 1024) {
+      message.warning('圖片過大（請小於 5MB）')
+      return false
+    }
+    try {
+      onAddImage?.(await fileToDataUrl(file))
+    } catch {
+      message.error('讀取圖片失敗')
+    }
+    return false
+  }
   const scrollRef = useRef<HTMLDivElement>(null)
   const screens = useBreakpoint()
   const { token } = theme.useToken()
@@ -82,7 +117,31 @@ export default function ChatPanel({
             )}
           </Space>
         )}
+        {images.length > 0 && (
+          <Space wrap style={{ marginBottom: 8 }}>
+            {images.map((src, i) => (
+              <div key={i} style={{ position: 'relative' }}>
+                <img
+                  src={src}
+                  alt="參考圖"
+                  style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6 }}
+                />
+                <CloseCircleFilled
+                  onClick={() => onRemoveImage?.(i)}
+                  style={{ position: 'absolute', top: -6, right: -6, cursor: 'pointer', fontSize: 16 }}
+                />
+              </div>
+            ))}
+          </Space>
+        )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          {onAddImage && (
+            <Upload accept="image/*" showUploadList={false} beforeUpload={handlePickImage}>
+              <Tooltip title="附加參考圖（依模型支援）">
+                <Button icon={<PictureOutlined />} disabled={streaming} />
+              </Tooltip>
+            </Upload>
+          )}
           <Input.TextArea
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
