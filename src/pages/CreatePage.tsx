@@ -43,6 +43,7 @@ import {
   READY_MARKER,
 } from '../services/systemPrompt'
 import { summarizeBoundData } from '../services/dataSource'
+import { suggestToolMeta } from '../services/naming'
 import { parseBrainstorm, BrainstormQuestion } from '../services/brainstorm'
 import { ToolDefinition, ToolVersion, Message, DataSource } from '../types'
 
@@ -126,6 +127,20 @@ export default function CreatePage() {
     setTool(updated)
     save(updated)
     if (!id) navigate(`/create/${updated.id}`, { replace: true })
+    return updated
+  }
+
+  // 首次生成後，若仍是預設名稱，依對話自動命名
+  async function autoName(baseTool: ToolDefinition, convo: Message[]) {
+    if (baseTool.name !== '新工具') return
+    const meta = await suggestToolMeta(settings.llm, convo)
+    if (!meta) return
+    setTool((prev) => {
+      if (prev.id !== baseTool.id || prev.name !== '新工具') return prev
+      const u = { ...prev, name: meta.name, description: meta.description || prev.description, updatedAt: new Date().toISOString() }
+      save(u)
+      return u
+    })
   }
 
   function lastUserIndex(): number {
@@ -220,9 +235,10 @@ export default function CreatePage() {
     const explanation = extractExplanation(full) || '已生成工具。'
     const newConversation: Message[] = [...genMessages, { role: 'assistant', content: explanation }]
     setMessages(newConversation)
-    commitVersion(code, newConversation)
+    const committed = commitVersion(code, newConversation)
     setReady(false)
     setPreviewTab('tool')
+    autoName(committed, newConversation)
   }
 
   // 編輯核心：對 baseCode 套用 patch，產生新版本（掛在 baseTool 之下）
