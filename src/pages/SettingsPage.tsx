@@ -13,15 +13,16 @@ import {
   Select,
   Popconfirm,
 } from 'antd'
-import { ApiOutlined, SaveOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { ApiOutlined, SaveOutlined, PlusOutlined, DeleteOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { Progress, List } from 'antd'
+import { Progress, List, Upload } from 'antd'
 import AppHeader from '../components/AppHeader'
 import { useSettings } from '../hooks/useSettings'
 import { testConnection } from '../services/llm'
 import { connectMCP } from '../services/mcpClient'
 import { getStorageUsage, formatBytes } from '../services/storageUsage'
+import { exportBackup, importBackup } from '../services/backup'
 import { Settings, MCPServer } from '../types'
 
 // localStorage 多數瀏覽器約 5MB
@@ -67,6 +68,26 @@ export default function SettingsPage() {
     setEditingMcp(server)
     mcpForm.setFieldsValue(server)
     setMcpModalOpen(true)
+  }
+
+  function handleImportBackup(file: File) {
+    Modal.confirm({
+      title: '還原備份',
+      content: '這會覆蓋目前所有工具與設定，確定要還原嗎？',
+      okText: '還原',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const count = await importBackup(file)
+          message.success(`已還原 ${count} 個工具，即將重新載入…`)
+          setTimeout(() => window.location.reload(), 800)
+        } catch {
+          message.error('還原失敗，請確認備份檔正確')
+        }
+      },
+    })
+    return false
   }
 
   async function handleSaveMcp(values: Omit<MCPServer, 'id'>) {
@@ -242,6 +263,23 @@ export default function SettingsPage() {
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           版本歷史會保存每個版本的完整程式碼，數量多時較佔空間，可在編輯工具時用「精簡版本」清理。
         </Typography.Text>
+
+        <Divider />
+
+        <Typography.Title level={4}>備份與還原</Typography.Title>
+        <Space wrap>
+          <Button icon={<DownloadOutlined />} onClick={exportBackup}>
+            匯出全部
+          </Button>
+          <Upload accept=".json" showUploadList={false} beforeUpload={handleImportBackup}>
+            <Button icon={<UploadOutlined />}>還原備份</Button>
+          </Upload>
+        </Space>
+        <div>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            備份包含所有工具、版本、各工具資料與系統設定（含 API Key），請妥善保管。還原會覆蓋目前資料。
+          </Typography.Text>
+        </div>
       </Content>
     </Layout>
   )
