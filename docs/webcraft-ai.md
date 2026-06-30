@@ -341,6 +341,9 @@ v1 (根)
 - ✅ **#8 參考圖生成（多模態）**：對話可附圖，`streamLLM` 以 OpenAI vision 格式附到最後一則 user 訊息；首輪 prompt 要求比照參考圖版面/風格。
 - ✅ **#13 PWA**：手寫 service worker（導覽 network-first、資源 cache-first、跨來源不攔截）+ manifest → 離線可用、可安裝。
 
+#### 2026-06-27（Co-work 體驗 A 階段）
+- ✅ **A1 主動建議 chips**：每次生成/修改後以 JSON 模式請 LLM 提 2-3 個「下一步」（`suggestNextSteps`），在輸入框上方以可點 Tag 呈現，點擊即當成一則修改送出。
+
 ## 7. 附錄：各 Task 實作參考（程式碼）
 
 > 以下為原實作計畫的逐 Task 程式碼，作為實作時的參考。**執行順序以第 5 節的 Slice 為準**（Slice 會重新分組並修正第 4 節列出的問題），本附錄僅供查閱對應程式碼片段。

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Input, Button, Empty, Grid, Typography, theme, Space, Tooltip, Popconfirm, Upload, message } from 'antd'
+import { Input, Button, Empty, Grid, Typography, theme, Space, Tooltip, Popconfirm, Upload, message, Tag } from 'antd'
 import {
   SendOutlined,
   StopOutlined,
@@ -39,6 +39,8 @@ interface Props {
   images?: string[]
   onAddImage?: (dataUrl: string) => void
   onRemoveImage?: (index: number) => void
+  suggestions?: string[]
+  onSuggestion?: (text: string) => void
 }
 
 export default function ChatPanel({
@@ -57,6 +59,8 @@ export default function ChatPanel({
   images = [],
   onAddImage,
   onRemoveImage,
+  suggestions = [],
+  onSuggestion,
 }: Props) {
   async function handlePickImage(file: File) {
     if (file.size > 5 * 1024 * 1024) {
@@ -96,6 +100,23 @@ export default function ChatPanel({
       </div>
 
       <div style={{ padding: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
+        {!streaming && suggestions.length > 0 && onSuggestion && (
+          <div style={{ marginBottom: 8 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12, marginRight: 4 }}>
+              💡 下一步：
+            </Typography.Text>
+            {suggestions.map((s, i) => (
+              <Tag
+                key={i}
+                color="blue"
+                style={{ cursor: 'pointer', marginBottom: 4 }}
+                onClick={() => onSuggestion(s)}
+              >
+                {s}
+              </Tag>
+            ))}
+          </div>
+        )}
         {!streaming && messages.some((m) => m.role === 'user') && (onRegenerate || onEditLast || onDeleteLast) && (
           <Space style={{ marginBottom: 8 }}>
             {onRegenerate && (

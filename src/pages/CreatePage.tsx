@@ -44,6 +44,7 @@ import {
 } from '../services/systemPrompt'
 import { summarizeBoundData } from '../services/dataSource'
 import { suggestToolMeta } from '../services/naming'
+import { suggestNextSteps } from '../services/suggestions'
 import { parseBrainstorm, BrainstormQuestion } from '../services/brainstorm'
 import { ToolDefinition, ToolVersion, Message, DataSource } from '../types'
 
@@ -87,7 +88,13 @@ export default function CreatePage() {
   const [ready, setReady] = useState(false)
   const [toolError, setToolError] = useState<string | null>(null)
   const [attachedImages, setAttachedImages] = useState<string[]>([])
+  const [suggestions, setSuggestions] = useState<string[]>([])
   const [questions, setQuestions] = useState<BrainstormQuestion[] | null>(null)
+
+  function fetchSuggestions(convo: Message[]) {
+    setSuggestions([])
+    suggestNextSteps(settings.llm, convo).then(setSuggestions)
+  }
   const [autoFix, setAutoFix] = useState(false)
   const autoFixAttempts = useRef(0)
   const MAX_AUTO_FIX = 2
@@ -173,6 +180,7 @@ export default function CreatePage() {
   // 腦力激盪核心：對給定對話產生回應（問題表單 / ready）
   async function brainstormCore(convo: Message[], images?: string[]) {
     setQuestions(null)
+    setSuggestions([])
     let full: string
     try {
       full = await start(settings.llm, buildBrainstormSystemPrompt(tool.dataSources), convo, images)
@@ -218,6 +226,7 @@ export default function CreatePage() {
     setMessages(genMessages)
     setAttachedImages([])
     setToolError(null)
+    setSuggestions([])
     setGenKind('full')
     setGeneratingCode(true)
     setPreviewTab('code')
@@ -244,11 +253,13 @@ export default function CreatePage() {
     setReady(false)
     setPreviewTab('tool')
     autoName(committed, newConversation)
+    fetchSuggestions(newConversation)
   }
 
   // 編輯核心：對 baseCode 套用 patch，產生新版本（掛在 baseTool 之下）
   async function editCore(convo: Message[], baseCode: string, baseTool: ToolDefinition, images?: string[]) {
     setToolError(null)
+    setSuggestions([])
     const schema = await summarizeBoundData(baseTool.dataSources)
     setGenKind('patch')
     setGeneratingCode(true)
@@ -297,6 +308,7 @@ export default function CreatePage() {
     setMessages(newConversation)
     commitVersion(newCode, newConversation, baseTool)
     setPreviewTab('tool')
+    fetchSuggestions(newConversation)
   }
 
   function editTurn(userMsg: Message) {
@@ -404,6 +416,15 @@ export default function CreatePage() {
     runBrainstorm({ role: 'user', content: compiled })
   }
 
+  // 點擊主動建議 = 當成一則修改送出
+  function handleSuggestion(text: string) {
+    if (streaming) return
+    autoFixAttempts.current = 0
+    setSuggestions([])
+    if (hasVersions) editTurn({ role: 'user', content: text })
+    else runBrainstorm({ role: 'user', content: text })
+  }
+
   function handleVersionSelect(versionId: string) {
     const version = tool.versions.find((v) => v.versionId === versionId)
     if (!version) return
@@ -473,6 +494,8 @@ export default function CreatePage() {
       images={attachedImages}
       onAddImage={(url) => setAttachedImages((prev) => [...prev, url])}
       onRemoveImage={(i) => setAttachedImages((prev) => prev.filter((_, j) => j !== i))}
+      suggestions={suggestions}
+      onSuggestion={handleSuggestion}
       placeholder={hasVersions ? '描述要修改的地方…' : '描述你想要的工具，我會先問幾個問題…'}
       belowMessages={
         !hasVersions && questions ? (
