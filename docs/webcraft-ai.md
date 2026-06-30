@@ -331,8 +331,15 @@ v1 (根)
 - ✅ **Token 用量顯示**：解析 `stream_options.include_usage`，工具列顯示上次生成 token 數。
 - ✅ **快捷動作**：重新生成 / 編輯 / 刪除最後一則（編輯回合會還原版本後重做）。
 - ✅ **資料預覽**：DataPage 可預覽檔案開頭（CSV→表格、JSON→格式化），用 `readFilePrefix` 避免讀整個大檔。
+- ✅ **品牌 favicon**：SVG + PNG（32/180/192/512）+ site.webmanifest（用 headless chromium 渲染）。
+- ✅ **CLAUDE.md**：行為準則 + 專案專屬慣例（分支、驗證、文件單一來源、架構雷區）。
 
----
+#### 2026-06-27（生成貼合度 + 平台完整度批次）
+- ✅ **#5 自動命名**：首次生成後若仍是「新工具」，依對話自動取名稱+描述（`suggestToolMeta`）。
+- ✅ **#14 備份/還原**：設定頁可匯出/還原全部 `webcraft_*`（工具、版本、各工具資料、設定）。
+- ✅ **#4 bridge.llm 強化**：`chat(messages, { system, json, onChunk })`——system 提示、JSON 模式、逐字串流回呼。
+- ✅ **#8 參考圖生成（多模態）**：對話可附圖，`streamLLM` 以 OpenAI vision 格式附到最後一則 user 訊息；首輪 prompt 要求比照參考圖版面/風格。
+- ✅ **#13 PWA**：手寫 service worker（導覽 network-first、資源 cache-first、跨來源不攔截）+ manifest → 離線可用、可安裝。
 
 ## 7. 附錄：各 Task 實作參考（程式碼）
 
