@@ -96,7 +96,7 @@ export default function ChatPanel({
             {streaming && <ChatMessage streaming streamText={streamText} />}
           </>
         )}
-        {!streaming && belowMessages}
+        {belowMessages}
       </div>
 
       <div style={{ padding: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>

@@ -32,6 +32,7 @@ import ChatPanel from '../components/ChatPanel'
 import PreviewPanel from '../components/PreviewPanel'
 import DataSourceBinder from '../components/DataSourceBinder'
 import QuestionForm from '../components/QuestionForm'
+import PlanPanel from '../components/PlanPanel'
 import { useTools } from '../hooks/useTools'
 import { useSettings } from '../hooks/useSettings'
 import { useLLMStream } from '../hooks/useLLMStream'
@@ -45,6 +46,7 @@ import {
 import { summarizeBoundData } from '../services/dataSource'
 import { suggestToolMeta } from '../services/naming'
 import { suggestNextSteps } from '../services/suggestions'
+import { proposePlan, PlanStep } from '../services/plan'
 import { parseBrainstorm, BrainstormQuestion } from '../services/brainstorm'
 import { ToolDefinition, ToolVersion, Message, DataSource } from '../types'
 
@@ -89,6 +91,9 @@ export default function CreatePage() {
   const [toolError, setToolError] = useState<string | null>(null)
   const [attachedImages, setAttachedImages] = useState<string[]>([])
   const [suggestions, setSuggestions] = useState<string[]>([])
+  const [plan, setPlan] = useState<PlanStep[] | null>(null)
+  const [planning, setPlanning] = useState(false)
+  const [planRunning, setPlanRunning] = useState(false)
   const [questions, setQuestions] = useState<BrainstormQuestion[] | null>(null)
 
   function fetchSuggestions(convo: Message[]) {
@@ -256,6 +261,116 @@ export default function CreatePage() {
     fetchSuggestions(newConversation)
   }
 
+  // A2 規劃：點「生成工具」先請 LLM 產生分步計畫
+  async function handlePlanClick() {
+    if (streaming || planning || planRunning) return
+    if (!llmReady()) return
+    if (messages.length === 0) {
+      message.warning('請先描述你想要的工具')
+      return
+    }
+    setPlanning(true)
+    try {
+      setPlan(await proposePlan(settings.llm, messages))
+    } catch {
+      message.error('產生計畫失敗，可改用「直接生成」')
+    } finally {
+      setPlanning(false)
+    }
+  }
+
+  // A2 執行：逐步建構（可從失敗處續做）
+  async function runPlan() {
+    if (!plan || streaming) return
+    autoFixAttempts.current = 0
+    setSuggestions([])
+    setPreviewTab('code')
+    setMobileTab('preview')
+
+    let startIndex = plan.findIndex((s) => s.status !== 'done')
+    if (startIndex < 0) return
+    setPlan((prev) =>
+      prev ? prev.map((s, i) => (i >= startIndex && s.status === 'error' ? { ...s, status: 'todo' } : s)) : prev,
+    )
+    setPlanRunning(true)
+
+    let workingTool = tool
+    let convo = messages
+    let code = currentVersion?.code ?? ''
+
+    for (let i = startIndex; i < plan.length; i++) {
+      const step = plan[i]
+      setPlan((prev) => (prev ? prev.map((s, j) => (j === i ? { ...s, status: 'running' } : s)) : prev))
+      const isFirst = !code
+      setGenKind(isFirst ? 'full' : 'patch')
+      setGeneratingCode(true)
+      const stepMsg: Message = {
+        role: 'user',
+        content: isFirst
+          ? `第一步：${step.title}。${step.detail} 先做出可運作的基礎版本。`
+          : `下一步：${step.title}。${step.detail}`,
+      }
+      convo = [...convo, stepMsg]
+      setMessages(convo)
+      const schema = await summarizeBoundData(workingTool.dataSources)
+
+      let full: string
+      try {
+        full = await start(
+          settings.llm,
+          isFirst
+            ? buildFirstTurnSystemPrompt(workingTool.dataSources, schema)
+            : buildPatchSystemPrompt(code, workingTool.dataSources, schema),
+          convo,
+        )
+      } catch (err) {
+        setGeneratingCode(false)
+        setPlanRunning(false)
+        setPlan((prev) => (prev ? prev.map((s, j) => (j === i ? { ...s, status: 'error' } : s)) : prev))
+        if (!String(err).includes('AbortError')) message.error(`第 ${i + 1} 步失敗：${err}`)
+        return
+      }
+
+      let newCode: string | null
+      if (isFirst) {
+        newCode = extractFullHtml(full)
+      } else {
+        const patches = parsePatches(full)
+        newCode = patches.length > 0 ? applyPatches(code, patches) : extractFullHtml(full)
+        if (!newCode && patches.length > 0) {
+          try {
+            const fb = await start(settings.llm, buildFirstTurnSystemPrompt(workingTool.dataSources, schema), convo)
+            newCode = extractFullHtml(fb)
+          } catch {
+            newCode = null
+          }
+        }
+      }
+
+      if (!newCode) {
+        setGeneratingCode(false)
+        setPlanRunning(false)
+        setPlan((prev) => (prev ? prev.map((s, j) => (j === i ? { ...s, status: 'error' } : s)) : prev))
+        message.warning(`第 ${i + 1} 步未取得程式碼，可按「繼續建構」重試`)
+        return
+      }
+
+      const explanation = extractExplanation(full) || `完成：${step.title}`
+      convo = [...convo, { role: 'assistant', content: explanation }]
+      setMessages(convo)
+      workingTool = commitVersion(newCode, convo, workingTool)
+      code = newCode
+      setPlan((prev) => (prev ? prev.map((s, j) => (j === i ? { ...s, status: 'done' } : s)) : prev))
+    }
+
+    setGeneratingCode(false)
+    setPlanRunning(false)
+    setReady(false)
+    setPreviewTab('tool')
+    autoName(workingTool, convo)
+    fetchSuggestions(convo)
+  }
+
   // 編輯核心：對 baseCode 套用 patch，產生新版本（掛在 baseTool 之下）
   async function editCore(convo: Message[], baseCode: string, baseTool: ToolDefinition, images?: string[]) {
     setToolError(null)
@@ -405,6 +520,7 @@ export default function CreatePage() {
     if (!input.trim() || streaming) return
     if (!llmReady()) return
     autoFixAttempts.current = 0
+    setPlan(null)
     const userMsg: Message = { role: 'user', content: input }
     if (hasVersions) editTurn(userMsg)
     else runBrainstorm(userMsg)
@@ -498,7 +614,19 @@ export default function CreatePage() {
       onSuggestion={handleSuggestion}
       placeholder={hasVersions ? '描述要修改的地方…' : '描述你想要的工具，我會先問幾個問題…'}
       belowMessages={
-        !hasVersions && questions ? (
+        plan ? (
+          <PlanPanel
+            steps={plan}
+            running={planRunning}
+            onRemove={(i) => setPlan((prev) => (prev ? prev.filter((_, j) => j !== i) : prev))}
+            onStart={runPlan}
+            onSkip={() => {
+              setPlan(null)
+              generate()
+            }}
+            onCancel={() => setPlan(null)}
+          />
+        ) : !hasVersions && questions ? (
           <QuestionForm questions={questions} disabled={streaming} onSubmit={handleAnswers} />
         ) : null
       }
@@ -559,8 +687,8 @@ export default function CreatePage() {
               <Button
                 type={ready ? 'primary' : 'default'}
                 icon={<ThunderboltOutlined />}
-                loading={generatingCode}
-                onClick={generate}
+                loading={planning || planRunning || generatingCode}
+                onClick={handlePlanClick}
               >
                 生成工具
               </Button>
