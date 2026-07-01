@@ -42,12 +42,16 @@ function listSources(dataSources: ToolDefinition['dataSources']): string {
 // 腦力激盪階段：只澄清需求、不寫程式碼
 export const READY_MARKER = '[READY]'
 
-export function buildBrainstormSystemPrompt(dataSources: ToolDefinition['dataSources']): string {
+export function buildBrainstormSystemPrompt(
+  dataSources: ToolDefinition['dataSources'],
+  schemaSummary?: string,
+): string {
   return `你是產品助理，正在協助使用者釐清他想要的網頁工具需求。
 
 此工具可綁定的資料來源：
 ${listSources(dataSources)}
-
+${schemaBlock(schemaSummary)}
+${schemaSummary ? '請先看過上面的資料內容與格式，據此提出貼近這份資料的問題與建議（例如針對實際欄位）。\n' : ''}
 規則：
 - 用繁體中文，一次最多問 1～3 個最關鍵的澄清問題（功能、輸入/輸出、資料、外觀風格等）。
 - 這個階段**絕對不要輸出任何工具程式碼**，只進行需求澄清。

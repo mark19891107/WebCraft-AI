@@ -186,9 +186,10 @@ export default function CreatePage() {
   async function brainstormCore(convo: Message[], images?: string[]) {
     setQuestions(null)
     setSuggestions([])
+    const schema = await summarizeBoundData(tool.dataSources)
     let full: string
     try {
-      full = await start(settings.llm, buildBrainstormSystemPrompt(tool.dataSources), convo, images)
+      full = await start(settings.llm, buildBrainstormSystemPrompt(tool.dataSources, schema), convo, images)
     } catch (err) {
       if (String(err).includes('AbortError')) return
       message.error(`LLM 請求失敗：${err}`)

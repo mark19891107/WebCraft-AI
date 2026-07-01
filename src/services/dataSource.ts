@@ -58,19 +58,25 @@ export function parseData(name: string, text: string): unknown {
   return text
 }
 
-// 產生給 LLM system prompt 的簡短 schema 摘要
+function clip(s: string, max = 800): string {
+  return s.length > max ? `${s.slice(0, max)}\n…（已截斷）` : s
+}
+
+// 產生給 LLM system prompt 的 schema + 內容範例摘要
 export function summarizeData(name: string, text: string): string {
   const parsed = parseData(name, text)
   if (Array.isArray(parsed)) {
     const columns = parsed.length ? Object.keys(parsed[0] as object) : []
-    const sample = parsed.slice(0, 2)
-    return `${name}：共 ${parsed.length} 筆，欄位 [${columns.join(', ')}]；範例 ${JSON.stringify(sample)}`
+    const sample = clip(JSON.stringify(parsed.slice(0, 2), null, 2))
+    return `${name}：陣列，共 ${parsed.length} 筆，欄位 [${columns.join(', ')}]\n前幾筆範例：\n${sample}`
   }
   if (parsed && typeof parsed === 'object') {
-    return `${name}：JSON 物件，頂層鍵 [${Object.keys(parsed).join(', ')}]`
+    const keys = Object.keys(parsed as object)
+    const sample = clip(JSON.stringify(parsed, null, 2))
+    return `${name}：JSON 物件，頂層鍵 [${keys.join(', ')}]\n內容範例：\n${sample}`
   }
-  const preview = String(text).slice(0, 120)
-  return `${name}：文字內容，開頭「${preview}」`
+  const preview = clip(String(text), 300)
+  return `${name}：文字內容，開頭：\n${preview}`
 }
 
 // 讀取工具已綁定的資料來源，組成給 system prompt 的摘要
