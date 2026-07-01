@@ -21,15 +21,32 @@ export function parsePatches(response: string): Patch[] {
   return patches
 }
 
+// 主要的程式碼界定哨符（幾乎不會出現在程式碼內容中，避免被程式碼裡的 ``` 假關閉）
+export const CODE_OPEN = '@@@WEBCRAFT_CODE@@@'
+export const CODE_CLOSE = '@@@END_WEBCRAFT_CODE@@@'
+
 export interface SplitResult {
   explanation: string // 給人看的說明（不含程式碼/patch）
   code: string // 程式碼或 patch 內容（給「程式碼」頁籤即時呈現）
   inCode: boolean // 目前是否仍在未關閉的程式碼/patch 區（串流中）
 }
 
+// 程式碼區的界定方式（依優先序）：自訂哨符 → <patch> → markdown ``` 圍欄
+interface Opener {
+  open: string
+  close: string
+  keepMarkers: boolean // code 是否保留起訖標記（<patch> 需要保留給 parsePatches）
+  afterNewline: boolean // 起始標記後略過同一行剩餘（``` 的語言標籤）
+}
+
+const OPENERS: Opener[] = [
+  { open: CODE_OPEN, close: CODE_CLOSE, keepMarkers: false, afterNewline: false },
+  { open: '<patch>', close: '</patch>', keepMarkers: true, afterNewline: false },
+  { open: '```', close: '```', keepMarkers: false, afterNewline: true },
+]
+
 /**
  * 將（可能仍在串流、未完成的）LLM 回應分離成「說明」與「程式碼」兩部分。
- * 程式碼區界定為 markdown ``` 圍欄 或 <patch>...</patch> 區塊。
  * 直接對「目前累積的完整字串」呼叫即可，毋須處理 chunk 邊界。
  */
 export function splitStream(text: string): SplitResult {
@@ -39,68 +56,84 @@ export function splitStream(text: string): SplitResult {
   let pos = 0
 
   while (pos < text.length) {
-    const fenceIdx = text.indexOf('```', pos)
-    const patchIdx = text.indexOf('<patch>', pos)
-
-    let nextIdx = -1
-    let kind: 'fence' | 'patch' | null = null
-    if (fenceIdx !== -1 && (patchIdx === -1 || fenceIdx < patchIdx)) {
-      nextIdx = fenceIdx
-      kind = 'fence'
-    } else if (patchIdx !== -1) {
-      nextIdx = patchIdx
-      kind = 'patch'
+    // 找出最靠前的起始標記
+    let best = -1
+    let opener: Opener | null = null
+    for (const o of OPENERS) {
+      const idx = text.indexOf(o.open, pos)
+      if (idx !== -1 && (best === -1 || idx < best)) {
+        best = idx
+        opener = o
+      }
     }
-
-    if (nextIdx === -1) {
+    if (best === -1 || !opener) {
       explanation += text.slice(pos)
       break
     }
 
-    explanation += text.slice(pos, nextIdx)
+    explanation += text.slice(pos, best)
 
-    if (kind === 'fence') {
-      const nlIdx = text.indexOf('\n', nextIdx)
-      if (nlIdx === -1) {
-        // 開頭圍欄尚未換行（語言標籤還在串流），先視為即將進入程式碼
+    let contentStart = best + opener.open.length
+    if (opener.afterNewline) {
+      const nl = text.indexOf('\n', best)
+      if (nl === -1) {
+        // 起始標記所在行尚未結束（語言標籤還在串流）
         inCode = true
         break
       }
-      const closeIdx = text.indexOf('```', nlIdx + 1)
-      if (closeIdx === -1) {
-        code += text.slice(nlIdx + 1)
-        inCode = true
-        break
-      }
-      code += text.slice(nlIdx + 1, closeIdx)
-      pos = closeIdx + 3
-    } else {
-      const closeIdx = text.indexOf('</patch>', nextIdx)
-      if (closeIdx === -1) {
-        code += text.slice(nextIdx)
-        inCode = true
-        break
-      }
-      code += text.slice(nextIdx, closeIdx + '</patch>'.length)
-      pos = closeIdx + '</patch>'.length
+      contentStart = nl + 1
     }
+
+    const closeIdx = text.indexOf(opener.close, contentStart)
+    if (closeIdx === -1) {
+      // 尚未關閉（串流中）
+      code += opener.keepMarkers ? text.slice(best) : text.slice(contentStart)
+      inCode = true
+      break
+    }
+    code += opener.keepMarkers
+      ? text.slice(best, closeIdx + opener.close.length)
+      : text.slice(contentStart, closeIdx)
+    pos = closeIdx + opener.close.length
   }
 
-  return { explanation: explanation.trim(), code, inCode }
+  // 串流中若說明結尾剛好是哨符的一部分（如 "@@@WEBCRA"），先不顯示，避免標記閃現在對話框
+  return { explanation: stripTrailingPartial(explanation, CODE_OPEN).trim(), code, inCode }
 }
 
-// 取出說明文字（移除所有程式碼圍欄與 <patch> 區塊後的內容）
+function stripTrailingPartial(s: string, marker: string): string {
+  for (let n = Math.min(marker.length - 1, s.length); n > 0; n--) {
+    if (s.endsWith(marker.slice(0, n))) return s.slice(0, s.length - n)
+  }
+  return s
+}
+
+// 取出說明文字（移除所有程式碼區塊後的內容）
 export function extractExplanation(response: string): string {
   return splitStream(response).explanation
 }
 
-// 從含 markdown code block 的回應中取出完整 HTML
+// 取出完整 HTML：哨符 → markdown 圍欄 → 「整段就是 HTML」啟發式
 export function extractFullHtml(response: string): string | null {
-  const match = response.match(/```(?:html)?\s*\n([\s\S]*?)```/)
+  // 1) 自訂哨符
+  const open = response.indexOf(CODE_OPEN)
+  if (open !== -1) {
+    const start = open + CODE_OPEN.length
+    const end = response.indexOf(CODE_CLOSE, start)
+    const inner = (end === -1 ? response.slice(start) : response.slice(start, end)).trim()
+    return inner || null
+  }
+  // 2) markdown 圍欄
+  const match = response.match(/```(?:html)?\s*\n([\s\S]*?)```/i)
   if (match) return match[1].trim()
-  // 沒有 code block 但整段看起來就是 HTML 時，直接採用
-  const trimmed = response.trim()
-  if (/^<!doctype html>/i.test(trimmed) || /^<html[\s>]/i.test(trimmed)) return trimmed
+  // 3) 啟發式：從 <!doctype html> 或 <html ...> 擷取到 </html>
+  const idx = response.search(/<!doctype html>|<html[\s>]/i)
+  if (idx !== -1) {
+    let html = response.slice(idx).trim()
+    const endIdx = html.toLowerCase().lastIndexOf('</html>')
+    if (endIdx !== -1) html = html.slice(0, endIdx + '</html>'.length)
+    return html.trim() || null
+  }
   return null
 }
 

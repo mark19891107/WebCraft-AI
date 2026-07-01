@@ -44,7 +44,30 @@ describe('extractExplanation', () => {
 })
 
 describe('splitStream', () => {
-  it('separates explanation and fenced code', () => {
+  it('separates explanation and sentinel code', () => {
+    const r = splitStream('做好了。\n@@@WEBCRAFT_CODE@@@\n<h1>hi</h1>\n@@@END_WEBCRAFT_CODE@@@')
+    expect(r.explanation).toBe('做好了。')
+    expect(r.code.trim()).toBe('<h1>hi</h1>')
+    expect(r.inCode).toBe(false)
+  })
+
+  it('keeps code that contains triple backticks intact (sentinel)', () => {
+    const code = '<pre>```js\nconst a=1\n```</pre>'
+    const r = splitStream(`說明\n@@@WEBCRAFT_CODE@@@\n${code}\n@@@END_WEBCRAFT_CODE@@@`)
+    expect(r.explanation).toBe('說明')
+    expect(r.code).toContain('```js')
+    expect(r.code).toContain('</pre>')
+    expect(r.inCode).toBe(false)
+  })
+
+  it('marks inCode when sentinel is still open (streaming)', () => {
+    const r = splitStream('生成中…\n@@@WEBCRAFT_CODE@@@\n<h1>partial')
+    expect(r.explanation).toBe('生成中…')
+    expect(r.code).toContain('<h1>partial')
+    expect(r.inCode).toBe(true)
+  })
+
+  it('separates explanation and fenced code (fallback)', () => {
     const r = splitStream('做好了。\n```html\n<h1>hi</h1>\n```')
     expect(r.explanation).toBe('做好了。')
     expect(r.code.trim()).toBe('<h1>hi</h1>')
@@ -67,13 +90,25 @@ describe('splitStream', () => {
 })
 
 describe('extractFullHtml', () => {
-  it('extracts html from code block', () => {
+  it('extracts html from sentinels', () => {
+    const response = '說明\n@@@WEBCRAFT_CODE@@@\n<html></html>\n@@@END_WEBCRAFT_CODE@@@'
+    expect(extractFullHtml(response)).toBe('<html></html>')
+  })
+
+  it('extracts sentinel code containing backticks', () => {
+    const response = '@@@WEBCRAFT_CODE@@@\n<html>```</html>\n@@@END_WEBCRAFT_CODE@@@'
+    expect(extractFullHtml(response)).toBe('<html>```</html>')
+  })
+
+  it('extracts html from code block (fallback)', () => {
     const response = '```html\n<html></html>\n```'
     expect(extractFullHtml(response)).toBe('<html></html>')
   })
 
-  it('accepts raw html without code block', () => {
-    expect(extractFullHtml('<!DOCTYPE html><html></html>')).toBe('<!DOCTYPE html><html></html>')
+  it('accepts raw html with leading prose (heuristic)', () => {
+    expect(extractFullHtml('這是你的工具：<!DOCTYPE html><html></html>')).toBe(
+      '<!DOCTYPE html><html></html>',
+    )
   })
 
   it('returns null when no html', () => {

@@ -1,4 +1,5 @@
 import { ToolDefinition } from '../types'
+import { CODE_OPEN, CODE_CLOSE } from './patch'
 
 const BRIDGE_API_DOCS = `
 你生成的 HTML 工具可以使用 \`window.bridge\`（若主頁面有提供對應資料來源/設定）：
@@ -85,11 +86,17 @@ ${BRIDGE_API_DOCS}
 ${listSources(dataSources)}
 ${schemaBlock(schemaSummary)}
 
-輸出格式：先用一兩句說明，接著輸出完整 HTML（含內聯 CSS 與 JS）於 markdown code block：
-\`\`\`html
+輸出格式：先用一兩句說明，接著把完整 HTML（含內聯 CSS 與 JS）包在下面兩個標記之間，標記各自獨立一行：
+
+${CODE_OPEN}
 <!DOCTYPE html>
 ...完整 HTML...
-\`\`\`
+${CODE_CLOSE}
+
+界定規則（重要）：
+- 標記**之外**不要放任何程式碼；標記**之內**只放程式碼、不要放說明文字。
+- 就算你的程式碼內容含有 \`\`\` 反引號也沒關係——只有上面這兩個標記會用來界定程式碼。
+- 不要使用 markdown \`\`\` 圍欄來包程式碼，改用上述標記。
 
 要求：
 - 使用現代 CSS（flexbox/grid）、響應式版面、適合行動裝置
@@ -128,5 +135,6 @@ ${currentCode}
 - 每個 <find> 必須是目前程式碼的精確子字串且唯一
 - 可以有多個 <patch> 區塊
 - 只改必要的部分
-- 若改動幅度太大（等同重寫），改為直接輸出完整 HTML 於 markdown code block`
+- **<patch> 之外請勿貼任何程式碼**（避免程式碼混進說明）
+- 若改動幅度太大（等同重寫），改為把完整 HTML 包在 ${CODE_OPEN} 與 ${CODE_CLOSE} 之間（不要用 markdown \`\`\` 圍欄）`
 }
