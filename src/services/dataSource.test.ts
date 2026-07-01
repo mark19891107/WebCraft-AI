@@ -38,8 +38,23 @@ describe('summarizeData', () => {
     expect(s).toContain('News')
   })
 
-  it('truncates very long content', () => {
-    const big = JSON.stringify({ blob: 'x'.repeat(2000) })
-    expect(summarizeData('big.json', big)).toContain('已截斷')
+  it('shortens long string values but keeps every field name (huge first record)', () => {
+    const data = JSON.stringify([{ id: 1, note: 'x'.repeat(2000), city: 'Taipei' }])
+    const s = summarizeData('big.json', data)
+    // 所有欄位名都看得到，包含在超長值之後的欄位
+    expect(s).toContain('id')
+    expect(s).toContain('note')
+    expect(s).toContain('city')
+    // 超長值被縮短
+    expect(s).not.toContain('x'.repeat(500))
+    expect(s).toContain('…')
+  })
+
+  it('caps sampled array length with a remainder note', () => {
+    const data = JSON.stringify(Array.from({ length: 10 }, (_, i) => ({ n: i })))
+    // 頂層是陣列，summarizeData 先 slice(0,2)，故此測試針對巢狀陣列
+    const nested = JSON.stringify({ list: Array.from({ length: 10 }, (_, i) => i) })
+    expect(summarizeData('n.json', nested)).toContain('共 10 筆')
+    expect(summarizeData('a.json', data)).toContain('共 10 筆')
   })
 })
