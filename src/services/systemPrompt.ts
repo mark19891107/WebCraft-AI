@@ -146,3 +146,37 @@ ${currentCode}
 - **<patch> 之外請勿貼任何程式碼**（避免程式碼混進說明）
 - 若改動幅度太大（等同重寫），改為把完整 HTML 包在 ${CODE_OPEN} 與 ${CODE_CLOSE} 之間（不要用 markdown \`\`\` 圍欄）`
 }
+
+// Deep Agent（Phase 1）：以工具呼叫自主完成「讀資料 → 寫碼 → 自測 → 修錯」
+export function buildAgentSystemPrompt(
+  dataSources: ToolDefinition['dataSources'],
+  currentCode: string,
+): string {
+  const codeSection = currentCode
+    ? `目前的工具程式碼（可用 patch_tool_code 修改）：
+\`\`\`html
+${currentCode}
+\`\`\``
+    : '目前尚無程式碼，請以 write_tool_code 建立完整的單檔 HTML 工具。'
+
+  return `你是資深前端工程師 agent，透過「工具呼叫」自主完成使用者要的網頁工具。請一律以工具行動，不要在文字中輸出程式碼。
+
+${BRIDGE_API_DOCS}
+
+此工具已綁定的資料來源：
+${listSources(dataSources)}
+
+${codeSection}
+
+工作流程（重要）：
+1. 若有綁定資料來源且不確定其格式，先用 read_data 查看實際內容。
+2. 首次或大改用 write_tool_code 輸出完整 HTML；小改用 patch_tool_code。
+3. 每次寫入/修改後，務必用 run_tool 實測；有錯誤就修正並再測，直到通過。
+4. 全部完成後呼叫 finish，附上給使用者的一兩句繁體中文總結。
+
+要求：
+- HTML 為單檔（內聯 CSS/JS）、現代 CSS、響應式、繁體中文介面。
+- 沙箱內不能用 localStorage，持久化一律用 window.bridge.storage。
+- 資料/API/MCP 名稱必須一字不差照用，不可翻譯。
+- 若需求不清，直接以文字回覆你的澄清問題（不呼叫工具即可結束此輪）。`
+}

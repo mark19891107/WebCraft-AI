@@ -107,6 +107,110 @@ export async function streamLLM(options: LLMStreamOptions): Promise<string> {
   return fullText
 }
 
+// ===== Deep Agent：帶工具的 chat（function calling）=====
+import type { ApiMessage, ToolCallRequest, AgentToolDef, AgentChatResult } from '../agent/types'
+
+// 串流中的 delta.tool_calls 片段（依 index 累積組裝）
+interface ToolCallDelta {
+  index: number
+  id?: string
+  function?: { name?: string; arguments?: string }
+}
+
+// 把一批 delta 併入累積中的 tool calls（純函式，可測）
+export function mergeToolCallDeltas(
+  acc: ToolCallRequest[],
+  deltas: ToolCallDelta[],
+): ToolCallRequest[] {
+  const next = [...acc]
+  for (const d of deltas) {
+    const i = d.index
+    if (!next[i]) next[i] = { id: '', name: '', arguments: '' }
+    const cur = next[i]
+    if (d.id) cur.id = d.id
+    if (d.function?.name) cur.name += d.function.name
+    if (d.function?.arguments) cur.arguments += d.function.arguments
+  }
+  return next
+}
+
+export interface ChatWithToolsOptions {
+  settings: Settings['llm']
+  messages: ApiMessage[]
+  tools: AgentToolDef[]
+  onText?: (chunk: string) => void
+  signal?: AbortSignal
+}
+
+/**
+ * 一次帶工具的串流 chat：回傳「文字內容 + 組裝完成的工具呼叫」。
+ * 沿用跨 chunk 的 SSE 行緩衝。
+ */
+export async function chatWithTools(options: ChatWithToolsOptions): Promise<AgentChatResult> {
+  const { settings, messages, tools, onText, signal } = options
+  const base = normalizeEndpoint(settings.endpoint)
+
+  const response = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${settings.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: settings.model,
+      stream: true,
+      messages,
+      tools: tools.map((t) => ({
+        type: 'function',
+        function: { name: t.name, description: t.description, parameters: t.parameters },
+      })),
+    }),
+    signal,
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`LLM request failed: ${response.status} ${text}`)
+  }
+
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let content = ''
+  let toolCalls: ToolCallRequest[] = []
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('data:')) continue
+      const data = trimmed.slice(5).trim()
+      if (data === '[DONE]') return { content, toolCalls: toolCalls.filter((t) => t.name) }
+      try {
+        const json = JSON.parse(data)
+        const delta = json.choices?.[0]?.delta
+        const chunk: string = delta?.content ?? ''
+        if (chunk) {
+          content += chunk
+          onText?.(chunk)
+        }
+        if (Array.isArray(delta?.tool_calls)) {
+          toolCalls = mergeToolCallDeltas(toolCalls, delta.tool_calls as ToolCallDelta[])
+        }
+      } catch {
+        // 不完整或非 JSON 的 SSE 行，略過
+      }
+    }
+  }
+
+  return { content, toolCalls: toolCalls.filter((t) => t.name) }
+}
+
 /**
  * 測試 LLM 連線。先試 /models；不支援時退化為一次極小的 chat completion 探測。
  */

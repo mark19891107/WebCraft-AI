@@ -33,6 +33,7 @@ import PreviewPanel from '../components/PreviewPanel'
 import DataSourceBinder from '../components/DataSourceBinder'
 import QuestionForm from '../components/QuestionForm'
 import PlanPanel from '../components/PlanPanel'
+import AgentActivity from '../components/AgentActivity'
 import { useTools } from '../hooks/useTools'
 import { useSettings } from '../hooks/useSettings'
 import { useLLMStream } from '../hooks/useLLMStream'
@@ -41,8 +42,13 @@ import {
   buildFirstTurnSystemPrompt,
   buildPatchSystemPrompt,
   buildBrainstormSystemPrompt,
+  buildAgentSystemPrompt,
   READY_MARKER,
 } from '../services/systemPrompt'
+import { chatWithTools } from '../services/llm'
+import { runAgent } from '../agent/runAgent'
+import { buildAgentTools } from '../agent/tools'
+import { AgentEvent, ApiMessage } from '../agent/types'
 import { summarizeBoundData } from '../services/dataSource'
 import { suggestToolMeta } from '../services/naming'
 import { suggestNextSteps } from '../services/suggestions'
@@ -94,6 +100,11 @@ export default function CreatePage() {
   const [plan, setPlan] = useState<PlanStep[] | null>(null)
   const [planning, setPlanning] = useState(false)
   const [planRunning, setPlanRunning] = useState(false)
+  const [agentMode, setAgentMode] = useState(false)
+  const [agentRunning, setAgentRunning] = useState(false)
+  const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([])
+  const [agentCode, setAgentCode] = useState('')
+  const agentAbortRef = useRef<AbortController | null>(null)
   const [questions, setQuestions] = useState<BrainstormQuestion[] | null>(null)
 
   function fetchSuggestions(convo: Message[]) {
@@ -517,14 +528,80 @@ export default function CreatePage() {
     repair(toolError)
   }
 
+  // Deep Agent（Phase 1）：LLM 以工具呼叫自主完成讀資料→寫碼→自測→修錯
+  async function runAgentTurn(userMsg: Message) {
+    const convo = [...messages, userMsg]
+    setMessages(convo)
+    setInput('')
+    setQuestions(null)
+    setSuggestions([])
+    setPlan(null)
+    setToolError(null)
+    setAgentEvents([])
+
+    const baseCode = currentVersion?.code ?? ''
+    let working = baseCode
+    setAgentCode(baseCode)
+    const tools = buildAgentTools({
+      tool,
+      getCode: () => working,
+      setCode: (c) => {
+        working = c
+        setAgentCode(c)
+      },
+    })
+
+    agentAbortRef.current = new AbortController()
+    setAgentRunning(true)
+    setGeneratingCode(true)
+    setPreviewTab('code')
+    setMobileTab('preview')
+
+    try {
+      const { summary } = await runAgent({
+        chat: (msgs, defs, signal) =>
+          chatWithTools({ settings: settings.llm, messages: msgs, tools: defs, signal }),
+        tools,
+        systemPrompt: buildAgentSystemPrompt(tool.dataSources, baseCode),
+        conversation: convo.map((m): ApiMessage => ({ role: m.role, content: m.content })),
+        signal: agentAbortRef.current.signal,
+        onEvent: (e) => setAgentEvents((prev) => [...prev, e]),
+      })
+      const newConvo: Message[] = [...convo, { role: 'assistant', content: summary }]
+      setMessages(newConvo)
+      if (working && working !== baseCode) {
+        const committed = commitVersion(working, newConvo)
+        setPreviewTab('tool')
+        autoName(committed, newConvo)
+      } else {
+        persistConversation(newConvo)
+      }
+      fetchSuggestions(newConvo)
+    } catch (err) {
+      if (!String(err).includes('AbortError')) {
+        setAgentEvents((prev) => [...prev, { type: 'error', message: String(err) }])
+        message.error(`Agent 執行失敗：${err}`)
+      }
+    } finally {
+      setAgentRunning(false)
+      setGeneratingCode(false)
+    }
+  }
+
   function handleSend() {
-    if (!input.trim() || streaming) return
+    if (!input.trim() || streaming || agentRunning) return
     if (!llmReady()) return
     autoFixAttempts.current = 0
     setPlan(null)
     const userMsg: Message = { role: 'user', content: input }
-    if (hasVersions) editTurn(userMsg)
+    if (agentMode) runAgentTurn(userMsg)
+    else if (hasVersions) editTurn(userMsg)
     else runBrainstorm(userMsg)
+  }
+
+  function handleAbort() {
+    abort()
+    agentAbortRef.current?.abort()
   }
 
   // 腦力激盪問題表單：答完一次送回 LLM 開下一輪
@@ -535,11 +612,13 @@ export default function CreatePage() {
 
   // 點擊主動建議 = 當成一則修改送出
   function handleSuggestion(text: string) {
-    if (streaming) return
+    if (streaming || agentRunning) return
     autoFixAttempts.current = 0
     setSuggestions([])
-    if (hasVersions) editTurn({ role: 'user', content: text })
-    else runBrainstorm({ role: 'user', content: text })
+    const msg: Message = { role: 'user', content: text }
+    if (agentMode) runAgentTurn(msg)
+    else if (hasVersions) editTurn(msg)
+    else runBrainstorm(msg)
   }
 
   function handleVersionSelect(versionId: string) {
@@ -599,12 +678,12 @@ export default function CreatePage() {
   const chat = (
     <ChatPanel
       messages={messages}
-      streaming={streaming}
+      streaming={streaming || agentRunning}
       streamText={streamExplanation}
       input={input}
       onInputChange={setInput}
       onSend={handleSend}
-      onAbort={abort}
+      onAbort={handleAbort}
       onRegenerate={regenerate}
       onEditLast={editLast}
       onDeleteLast={deleteLast}
@@ -615,7 +694,9 @@ export default function CreatePage() {
       onSuggestion={handleSuggestion}
       placeholder={hasVersions ? '描述要修改的地方…' : '描述你想要的工具，我會先問幾個問題…'}
       belowMessages={
-        plan ? (
+        agentRunning || (agentMode && agentEvents.length > 0) ? (
+          <AgentActivity events={agentEvents} running={agentRunning} />
+        ) : plan ? (
           <PlanPanel
             steps={plan}
             running={planRunning}
@@ -635,8 +716,11 @@ export default function CreatePage() {
   )
 
   // patch 回合：把已完成的 patch 即時套到目前程式碼，讓使用者看到程式碼在變（而非空白卡住）
-  const liveCode =
-    genKind === 'patch' ? livePatchedCode(currentVersion?.code ?? '', streamRaw) : streamCode
+  const liveCode = agentRunning
+    ? agentCode
+    : genKind === 'patch'
+      ? livePatchedCode(currentVersion?.code ?? '', streamRaw)
+      : streamCode
 
   const preview = (
     <PreviewPanel
@@ -683,7 +767,13 @@ export default function CreatePage() {
           )}
         </Space>
         <Space>
-          {!hasVersions && (
+          <Tooltip title="Agent 模式（實驗性）：AI 自主讀資料、寫程式、自我測試並修錯">
+            <Space size={4}>
+              🤖
+              <Switch size="small" checked={agentMode} onChange={setAgentMode} disabled={agentRunning} />
+            </Space>
+          </Tooltip>
+          {!hasVersions && !agentMode && (
             <Badge dot={ready} offset={[-2, 2]}>
               <Button
                 type={ready ? 'primary' : 'default'}

@@ -344,6 +344,9 @@ v1 (根)
 #### 2026-06-27（Co-work 體驗 A 階段）
 - ✅ **A1 主動建議 chips**：每次生成/修改後以 JSON 模式請 LLM 提 2-3 個「下一步」（`suggestNextSteps`），在輸入框上方以可點 Tag 呈現，點擊即當成一則修改送出。
 - ✅ **A2 計畫式分步建構**：點「生成工具」先請 LLM 產生分步計畫（`proposePlan`，JSON），`PlanPanel` 顯示可刪除/確認；「開始建構」逐步執行（第一步完整生成、後續 patch），每步建立版本並即時顯示待辦/進行中/完成；某步失敗可「繼續建構」續做；保留「直接生成」逃生口。
+
+#### 2026-07（Deep Agent Phase 1，實驗性）
+- ✅ **Agent 模式（🤖 開關）**：`src/agent/` 新增工具呼叫迴圈——`chatWithTools`（串流組裝 `tool_calls`）+ `runAgent`（步數上限 12、abort、事件回報）+ 5 個工具：`read_data`（讀綁定資料摘要）、`write_tool_code`／`patch_tool_code`（改工作中程式碼、UI 即時顯示）、`run_tool`（**隱藏沙箱 iframe 實測、掛真實 bridge、回報執行錯誤**）、`finish`。開啟後送訊息即由 LLM 自主完成「讀資料→寫碼→自測→修錯」，過程顯示於 Agent 活動卡；結束時一次提交版本。原管線保留為預設（開關切換）。7 項單元測試（共 41）。
 - ✅ **腦力激盪可先看資料**：`buildBrainstormSystemPrompt` 現在也注入已綁定資料來源的 schema+內容範例（`summarizeBoundData`），並要求 LLM 據實際欄位提問；`summarizeData` 對 JSON/陣列加入截斷後的內容範例。新增 `dataSource` 測試（共 33）。
 - ✅ **對話/程式碼分流改用自訂哨符**：主要界定改用 `@@@WEBCRAFT_CODE@@@ … @@@END_WEBCRAFT_CODE@@@`（不易被程式碼內含的 ``` 假關閉），解析保留 `<patch>`、```` ```html ````、以及「整段 HTML」啟發式當 fallback；串流中會濾掉半截哨符避免閃現。修正「程式碼內含反引號時對話與程式碼被切錯/混淆」。新增 5 項測試（共 26）。
 
