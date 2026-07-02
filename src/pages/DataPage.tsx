@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Layout, Table, Button, Upload, message, Typography, Tag, Alert, Popconfirm, Modal, Space } from 'antd'
-import { UploadOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
+import { Layout, Table, Button, Upload, message, Typography, Tag, Alert, Popconfirm, Modal, Space, Input, Form } from 'antd'
+import { UploadOutlined, DeleteOutlined, EyeOutlined, FileAddOutlined } from '@ant-design/icons'
 import AppHeader from '../components/AppHeader'
 import { listFiles, writeFile, deleteFile, readFilePrefix, isOPFSSupported, OPFSFileInfo } from '../services/opfs'
 import { parseData } from '../services/dataSource'
@@ -20,10 +20,18 @@ interface Preview {
   text?: string
 }
 
+interface PasteJsonForm {
+  name: string
+  json: string
+}
+
 export default function DataPage() {
   const [files, setFiles] = useState<OPFSFileInfo[]>([])
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<Preview | null>(null)
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteSaving, setPasteSaving] = useState(false)
+  const [pasteForm] = Form.useForm<PasteJsonForm>()
   const supported = isOPFSSupported()
 
   async function handlePreview(info: OPFSFileInfo) {
@@ -69,6 +77,31 @@ export default function DataPage() {
       message.success(`已刪除 ${name}`)
     } catch {
       message.error('刪除失敗')
+    }
+  }
+
+  async function handlePasteJson(values: PasteJsonForm) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(values.json)
+    } catch (err) {
+      message.error(`JSON 格式錯誤：${err instanceof Error ? err.message : String(err)}`)
+      return
+    }
+    const trimmedName = values.name.trim()
+    const fileName = trimmedName.toLowerCase().endsWith('.json') ? trimmedName : `${trimmedName}.json`
+    setPasteSaving(true)
+    try {
+      const blob = new Blob([JSON.stringify(parsed)], { type: 'application/json' })
+      await writeFile(`/data/${fileName}`, blob)
+      await loadFiles()
+      message.success(`已新增 ${fileName}`)
+      setPasteOpen(false)
+      pasteForm.resetFields()
+    } catch {
+      message.error('儲存失敗')
+    } finally {
+      setPasteSaving(false)
     }
   }
 
@@ -118,11 +151,16 @@ export default function DataPage() {
           <Typography.Title level={3} style={{ margin: 0 }}>
             資料來源管理
           </Typography.Title>
-          <Upload accept=".csv,.json" showUploadList={false} beforeUpload={handleUpload} multiple disabled={!supported}>
-            <Button icon={<UploadOutlined />} loading={uploading} disabled={!supported}>
-              上傳 CSV / JSON
+          <Space wrap>
+            <Button icon={<FileAddOutlined />} onClick={() => setPasteOpen(true)} disabled={!supported}>
+              貼上 JSON
             </Button>
-          </Upload>
+            <Upload accept=".csv,.json" showUploadList={false} beforeUpload={handleUpload} multiple disabled={!supported}>
+              <Button icon={<UploadOutlined />} loading={uploading} disabled={!supported}>
+                上傳 CSV / JSON
+              </Button>
+            </Upload>
+          </Space>
         </div>
 
         {!supported && (
@@ -143,6 +181,39 @@ export default function DataPage() {
           locale={{ emptyText: '尚無資料檔案，請上傳 CSV 或 JSON' }}
           scroll={{ x: 'max-content' }}
         />
+
+        <Modal
+          title="貼上 JSON"
+          open={pasteOpen}
+          onCancel={() => setPasteOpen(false)}
+          footer={null}
+          destroyOnClose
+        >
+          <Form form={pasteForm} layout="vertical" onFinish={handlePasteJson}>
+            <Form.Item
+              name="name"
+              label="檔名"
+              rules={[{ required: true, message: '請輸入檔名' }]}
+              initialValue=""
+            >
+              <Input placeholder="例如：news" suffix=".json" />
+            </Form.Item>
+            <Form.Item
+              name="json"
+              label="JSON 內容"
+              rules={[{ required: true, message: '請貼上 JSON 內容' }]}
+            >
+              <Input.TextArea
+                placeholder='例如：[{"title": "...", "date": "..."}]'
+                autoSize={{ minRows: 8, maxRows: 20 }}
+                style={{ fontFamily: 'monospace', fontSize: 12 }}
+              />
+            </Form.Item>
+            <Button type="primary" htmlType="submit" loading={pasteSaving}>
+              儲存
+            </Button>
+          </Form>
+        </Modal>
 
         <Modal
           title={`預覽：${preview?.name ?? ''}`}
